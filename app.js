@@ -1,4 +1,4 @@
-/* Budget Buddy – iOS-friendly PWA
+/* Budget Buddy – iOS-friendly PWA (refined layout + same features)
  * Data lives in localStorage under key 'bb.state'
  * Month keys in format YYYY-MM
  */
@@ -7,7 +7,8 @@
 (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-  const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: guessCurrency() });
+  const currency = guessCurrency();
+  const money = new Intl.NumberFormat(undefined, { style: 'currency', currency });
 
   function guessCurrency(){
     try {
@@ -19,7 +20,7 @@
     } catch { return 'USD'; }
   }
 
-  // ---------- Categories (Fixed + Variable) ----------
+  // ---------- Categories ----------
   const GROUPS = [
     { key:'housing', label:'Housing', color:'var(--c-housing)', cats:[
       'Rent/Mortgage', 'Insurance/Property Taxes'
@@ -52,15 +53,13 @@
       'Fuel/Gas','Travel','Gifts'
     ]},
   ];
-
   const ALL_CATEGORIES = GROUPS.flatMap(g => g.cats.map(c => ({key:`${g.key}:${slug(c)}`, group:g.key, groupLabel:g.label, label:c, color:g.color})));
-
-  function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,'-'); }
+  const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'-');
 
   // ---------- State ----------
   const EMPTY_MONTH = () => ({ incomes:[], budgets:{}, transactions:[], savings:[], debtExtra:[] });
   const STATE = loadState();
-  ensureMonth(getMonthKey(new Date())); // ensure current month exists
+  ensureMonth(getMonthKey(new Date()));
 
   // ---------- DOM refs ----------
   const monthPicker = $('#monthPicker');
@@ -122,9 +121,7 @@
   initUI();
   renderAll();
 
-  // ---------- UI Init ----------
   function initUI(){
-    // month picker default
     monthPicker.value = getMonthKey(new Date());
     monthPicker.addEventListener('change', () => {
       ensureMonth(monthPicker.value);
@@ -132,7 +129,6 @@
       toast('Switched to ' + monthPicker.value);
     });
 
-    // income
     incomeForm.addEventListener('submit', e => {
       e.preventDefault();
       const amt = toNum(incomeAmount.value);
@@ -145,12 +141,9 @@
       toast('Income added ✔️');
     });
 
-    // budgets UI build
     buildBudgetPlanner();
 
-    // category select for transactions
     txCategory.innerHTML = ALL_CATEGORIES.map(c => `<option value="${c.key}">${c.groupLabel} — ${c.label}</option>`).join('');
-    // default today
     txDate.valueAsDate = new Date();
     saveDate.valueAsDate = new Date();
     debtDate.valueAsDate = new Date();
@@ -176,7 +169,6 @@
       toast('Expense recorded 💸');
     });
 
-    // goals
     goalForm.addEventListener('submit', e => {
       e.preventDefault();
       const name = goalName.value.trim();
@@ -202,14 +194,13 @@
       toast('Savings added 🧠');
     });
 
-    // debt extra
     debtForm.addEventListener('submit', e => {
       e.preventDefault();
       const amt = toNum(debtAmount.value);
       if (!debtName.value.trim() || !(amt > 0)) return;
       const m = currentMonth();
       m.debtExtra.push({ id: uid(), date: debtDate.value, name: debtName.value.trim(), amount: amt });
-      // also reflect in expenses under "Debt Repayment > Credit Cards" bucket for realism
+      // Mirror as expense for dashboards
       m.transactions.push({
         id: uid(),
         date: debtDate.value,
@@ -225,12 +216,10 @@
       toast('Extra debt payment added ✅');
     });
 
-    // sheet menu
+    // Sheet controls
     btnOpenMenu.addEventListener('click', () => { sheet.setAttribute('aria-hidden','false'); });
     btnCloseMenu.addEventListener('click', () => { sheet.setAttribute('aria-hidden','true'); });
-    sheet.addEventListener('click', e => {
-      if (e.target === sheet) sheet.setAttribute('aria-hidden','true');
-    });
+    sheet.addEventListener('click', e => { if (e.target === sheet) sheet.setAttribute('aria-hidden','true'); });
 
     btnExport.addEventListener('click', doExport);
     fileImport.addEventListener('change', handleImport);
@@ -248,14 +237,12 @@
     });
   }
 
-  // ---------- Build Budget Planner ----------
+  // ---------- Budget Planner (clean rows) ----------
   function buildBudgetPlanner(){
     const m = currentMonth();
-    // ensure budgets exist for all categories (default 0)
     for (const c of ALL_CATEGORIES){
       if (m.budgets[c.key] == null) m.budgets[c.key] = 0;
     }
-    // Build UI
     budgetGroups.innerHTML = GROUPS.map(g => {
       const rows = g.cats.map(cat => {
         const key = `${g.key}:${slug(cat)}`;
@@ -265,7 +252,6 @@
           <div class="row">
             <label>${colorDot}<span>${cat}</span></label>
             <input type="number" step="0.01" min="0" data-bkey="${key}" class="budget-input" value="${val}" />
-            <div class="muted">${g.label}</div>
           </div>
         `;
       }).join('');
@@ -278,7 +264,7 @@
     }).join('');
 
     $$('.budget-input', budgetGroups).forEach(inp => {
-      inp.addEventListener('change', e => {
+      inp.addEventListener('input', e => {
         const key = e.target.dataset.bkey;
         currentMonth().budgets[key] = toNum(e.target.value);
         save();
@@ -299,7 +285,6 @@
     renderDebt();
     renderCharts();
   }
-
   function renderTopline(){
     const m = currentMonth();
     const income = sum(m.incomes.map(x => x.amount));
@@ -309,7 +294,6 @@
     tlExpenses.textContent = money.format(expenses);
     tlResult.textContent = money.format(result);
   }
-
   function renderIncome(){
     const m = currentMonth();
     incomeBody.innerHTML = m.incomes.map(row => `
@@ -327,13 +311,11 @@
     });
     incomeTotal.textContent = money.format(sum(m.incomes.map(x => x.amount)));
   }
-
   function renderBudgetTotals(){
     const m = currentMonth();
     const total = sum(Object.values(m.budgets || {}));
     budgetedTotal.textContent = money.format(total);
   }
-
   function renderTransactions(){
     const m = currentMonth();
     txBody.innerHTML = m.transactions.map(row => {
@@ -358,11 +340,9 @@
     });
     txTotal.textContent = money.format(sum(m.transactions.map(x => x.amount)));
   }
-
   function renderGoals(){
     const goals = STATE.goals || [];
-    // List with progress bars
-    goalList.innerHTML = goals.map(g => {
+    $('#goal-list').innerHTML = goals.map(g => {
       const current = totalSavedForGoal(g.id);
       const pct = Math.min(100, Math.round(current / Math.max(1, g.target) * 100));
       return `
@@ -381,29 +361,26 @@
         </div>
       `;
     }).join('');
-    goalList.querySelectorAll('[data-del-goal]').forEach(btn => {
+    $$('#goal-list [data-del-goal]').forEach(btn => {
       btn.addEventListener('click', () => {
         if (!confirm('Delete this goal?')) return;
         STATE.goals = (STATE.goals || []).filter(x => x.id !== btn.dataset.delGoal);
-        // also remove savings rows for this goal
         for (const k of Object.keys(STATE.months)){
           STATE.months[k].savings = STATE.months[k].savings.filter(s => s.goalId !== btn.dataset.delGoal);
         }
         save(); renderGoals(); renderSavings(); renderCharts();
       });
     });
-    goalList.querySelectorAll('[data-archive-goal]').forEach(btn => {
+    $$('#goal-list [data-archive-goal]').forEach(btn => {
       btn.addEventListener('click', () => {
         const g = (STATE.goals||[]).find(x => x.id === btn.dataset.archiveGoal);
         if (g){ g.archived = !g.archived; save(); renderGoals(); }
       });
     });
 
-    // fill select for savings form with non-archived
     const opts = (STATE.goals||[]).filter(g => !g.archived).map(g => `<option value="${g.id}">${esc(g.name)}</option>`);
-    saveGoal.innerHTML = opts.join('');
+    $('#save-goal').innerHTML = opts.join('');
   }
-
   function renderSavings(){
     const m = currentMonth();
     saveBody.innerHTML = m.savings.map(s => {
@@ -425,7 +402,6 @@
     });
     saveTotal.textContent = money.format(sum(m.savings.map(x => x.amount)));
   }
-
   function renderDebt(){
     const m = currentMonth();
     debtBody.innerHTML = m.debtExtra.map(d => `
@@ -439,7 +415,6 @@
     debtBody.querySelectorAll('[data-del-debt]').forEach(btn => {
       btn.addEventListener('click', () => {
         const rec = m.debtExtra.find(x => x.id === btn.dataset.delDebt);
-        // also delete the mirrored expense if exists
         m.transactions = m.transactions.filter(tx => !(tx.notes === 'Extra payment' && tx.desc.startsWith(rec.name)));
         m.debtExtra = m.debtExtra.filter(x => x.id !== btn.dataset.delDebt);
         save(); renderDebt(); renderTransactions(); renderTopline(); renderCharts();
@@ -458,7 +433,6 @@
     const values = labels.map(k => byGroup[k].total);
     const colors = labels.map(k => byGroup[k].color);
 
-    // category donut
     chartByCat = upsertChart(chartByCat, $('#chart-category').getContext('2d'), {
       type:'doughnut',
       data:{ labels, datasets:[{ data: values, backgroundColor: colors, borderWidth:0 }]},
@@ -468,7 +442,6 @@
       }
     });
 
-    // budget vs actual (group totals)
     const budgetGroupTotals = labels.map(k => {
       const catKeys = ALL_CATEGORIES.filter(c => c.group === k).map(c => c.key);
       return sum(catKeys.map(key => budgetMap[key] || 0));
@@ -492,7 +465,6 @@
       }
     });
 
-    // needs vs wants
     const need = sum(m.transactions.filter(t => t.need).map(t => t.amount));
     const want = sum(m.transactions.filter(t => !t.need).map(t => t.amount));
     chartNeedWant = upsertChart(chartNeedWant, $('#chart-needwant').getContext('2d'), {
@@ -501,11 +473,10 @@
       options:{ plugins:{ legend:{ position:'bottom', labels:{ color:'#cfe7ff' }}} }
     });
 
-    // cumulative cashflow line (income - expenses over time)
+    // Cashflow line (income day 1 + expenses by date)
     const days = daysInMonth(monthPicker.value);
     let running = 0;
     const incomeTotal = sum(m.incomes.map(i => i.amount));
-    // naive allocation: add all income on day 1 for visualization; then subtract expenses by date
     const expenseByDay = Array.from({length:days}, (_,i)=>0);
     m.transactions.forEach(t => {
       const day = +t.date.split('-')[2];
@@ -530,7 +501,6 @@
       }
     });
   }
-
   function upsertChart(chart, ctx, config){
     if (chart){ chart.data = config.data; chart.options = config.options || {}; chart.update(); return chart; }
     return new Chart(ctx, config);
@@ -539,10 +509,8 @@
   // ---------- Aggregations ----------
   function aggregateByCategory(transactions){
     const map = {};
-    for (const t of transactions){
-      map[t.category] = (map[t.category] || 0) + t.amount;
-    }
-    return map; // {catKey: total}
+    for (const t of transactions){ map[t.category] = (map[t.category] || 0) + t.amount; }
+    return map;
   }
   function groupLabel(key){ return GROUPS.find(g => g.key === key)?.label || key; }
   function aggregateByGroup(byCat){
@@ -553,19 +521,13 @@
       if (!map[g]) map[g] = { total:0, color: cat?.color || '#999' };
       map[g].total += val;
     }
-    // ensure all groups exist (even if 0) for consistent legend
-    for (const g of GROUPS){
-      if (!map[g.key]) map[g.key] = { total:0, color:g.color };
-    }
-    return map; // {groupKey: {total,color}}
+    for (const g of GROUPS){ if (!map[g.key]) map[g.key] = { total:0, color:g.color }; }
+    return map;
   }
-
   function totalSavedForGoal(goalId){
     let sumAmt = 0;
     for (const m of Object.values(STATE.months)){
-      for (const s of m.savings){
-        if (s.goalId === goalId) sumAmt += s.amount;
-      }
+      for (const s of m.savings){ if (s.goalId === goalId) sumAmt += s.amount; }
     }
     return sumAmt;
   }
@@ -579,7 +541,6 @@
     a.click();
     URL.revokeObjectURL(a.href);
   }
-
   async function handleImport(e){
     const file = e.target.files?.[0];
     if (!file) return;
@@ -588,7 +549,7 @@
       const obj = JSON.parse(text);
       if (!obj || !obj.months) throw new Error('Not a valid export');
       localStorage.setItem('bb.state', JSON.stringify(obj));
-      Object.assign(STATE, obj); // mutate ref
+      Object.assign(STATE, obj);
       renderAll();
       toast('Import complete 💾');
     }catch(err){
@@ -599,102 +560,84 @@
   }
 
   // ---------- Helpers ----------
-  function daysInMonth(ym){
-    const [y,m] = ym.split('-').map(Number);
-    return new Date(y, m, 0).getDate();
-  }
+  function daysInMonth(ym){ const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
   function esc(s){ return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function uid(){ return Math.random().toString(36).slice(2,11); }
   function toNum(v){ return Math.max(0, Number.parseFloat(v||'0')) || 0; }
   function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
   function getMonthKey(d){ return d.toISOString().slice(0,7); }
   function currentMonth(){ return STATE.months[monthPicker.value]; }
-  function ensureMonth(key){
-    STATE.months[key] = STATE.months[key] || EMPTY_MONTH();
-  }
+  function ensureMonth(key){ STATE.months[key] = STATE.months[key] || EMPTY_MONTH(); }
 
   function loadState(){
     const raw = localStorage.getItem('bb.state');
-    let base = { version:1, months:{}, goals:[] };
-    if (raw){
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') base = parsed;
-      } catch { /*ignore*/ }
-    }
-    if (!base.months) base.months = {};
-    if (!base.goals) base.goals = [];
+    let base = { version:2, months:{}, goals:[] };
+    if (raw){ try { const parsed = JSON.parse(raw); if (parsed && typeof parsed === 'object') base = parsed; } catch {} }
+    base.months ||= {}; base.goals ||= [];
     return base;
   }
-  function save(){
-    localStorage.setItem('bb.state', JSON.stringify(STATE));
-  }
-
+  function save(){ localStorage.setItem('bb.state', JSON.stringify(STATE)); }
   function toast(msg){
-    statusBox.textContent = msg;
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => statusBox.textContent = '', 3500);
+    const el = $('#status'); el.textContent = msg;
+    clearTimeout(toast._t); toast._t = setTimeout(()=> el.textContent='', 3500);
   }
 
   // ---------- Sample Data ----------
   function loadSampleData(monthKey){
     ensureMonth(monthKey);
     const m = STATE.months[monthKey] = EMPTY_MONTH();
-
-    // incomes
     m.incomes = [
       {id:uid(), source:'Paycheck (post-tax)', amount: 3400},
       {id:uid(), source:'Freelance', amount: 850},
       {id:uid(), source:'Rental income', amount: 600},
       {id:uid(), source:'Interest', amount: 25}
     ];
-
-    // budgets (selected)
     const setB = (k,v)=> m.budgets[k]=v;
-    setB('housing:'+slug('Rent/Mortgage'), 1600);
-    setB('housing:'+slug('Insurance/Property Taxes'), 180);
-    setB('transport:'+slug('Car Payment'), 320);
-    setB('transport:'+slug('Car Insurance'), 110);
-    setB('utilities:'+slug('Electricity'), 90);
-    setB('utilities:'+slug('Water'), 40);
-    setB('utilities:'+slug('Internet/Cable'), 70);
-    setB('utilities:'+slug('Phone Bill'), 60);
-    setB('debt:'+slug('Student Loans'), 150);
-    setB('debt:'+slug('Credit Cards'), 100);
-    setB('fixedother:'+slug('Subscriptions'), 45);
-    setB('fixedother:'+slug('Other Fixed Loans'), 0);
-    setB('food:'+slug('Groceries'), 420);
-    setB('food:'+slug('Dining Out'), 160);
-    setB('household:'+slug('Personal Care'), 35);
-    setB('household:'+slug('Household Supplies'), 45);
-    setB('personal:'+slug('Shopping'), 120);
-    setB('personal:'+slug('Entertainment'), 80);
-    setB('medical:'+slug('Co-pays & Prescriptions'), 30);
-    setB('medical:'+slug('Health Care'), 30);
-    setB('othervar:'+slug('Fuel/Gas'), 130);
-    setB('othervar:'+slug('Travel'), 0);
-    setB('othervar:'+slug('Gifts'), 0);
+    const s = slug;
+    setB('housing:'+s('Rent/Mortgage'), 1600);
+    setB('housing:'+s('Insurance/Property Taxes'), 180);
+    setB('transport:'+s('Car Payment'), 320);
+    setB('transport:'+s('Car Insurance'), 110);
+    setB('utilities:'+s('Electricity'), 90);
+    setB('utilities:'+s('Water'), 40);
+    setB('utilities:'+s('Internet/Cable'), 70);
+    setB('utilities:'+s('Phone Bill'), 60);
+    setB('debt:'+s('Student Loans'), 150);
+    setB('debt:'+s('Credit Cards'), 100);
+    setB('fixedother:'+s('Subscriptions'), 45);
+    setB('fixedother:'+s('Other Fixed Loans'), 0);
+    setB('food:'+s('Groceries'), 420);
+    setB('food:'+s('Dining Out'), 160);
+    setB('household:'+s('Personal Care'), 35);
+    setB('household:'+s('Household Supplies'), 45);
+    setB('personal:'+s('Shopping'), 120);
+    setB('personal:'+s('Entertainment'), 80);
+    setB('medical:'+s('Co-pays & Prescriptions'), 30);
+    setB('medical:'+s('Health Care'), 30);
+    setB('othervar:'+s('Fuel/Gas'), 130);
+    setB('othervar:'+s('Travel'), 0);
+    setB('othervar:'+s('Gifts'), 0);
 
-    // transactions
-    const mm = monthKey; // YYYY-MM
+    const mm = monthKey;
+    const t = (ym,dd,desc,cat,need,amt,notes='') => ({id:uid(), date:`${ym}-${dd}`, desc, category:cat, need, amount:amt, notes});
     m.transactions = [
-      t(mm,'01','Rent','housing:'+slug('Rent/Mortgage'),true,1600,''),
-      t(mm,'02','Groceries – Trader Joe\'s','food:'+slug('Groceries'),true,98.25,''),
-      t(mm,'03','Car Payment','transport:'+slug('Car Payment'),true,320,''),
-      t(mm,'04','Electric Utility','utilities:'+slug('Electricity'),true,88.40,''),
-      t(mm,'06','Netflix & Gym','fixedother:'+slug('Subscriptions'),false,32.99,''),
-      t(mm,'07','Dining – Thai','food:'+slug('Dining Out'),false,28.75,''),
-      t(mm,'09','Gas','othervar:'+slug('Fuel/Gas'),true,42.10,''),
-      t(mm,'12','Phone Bill','utilities:'+slug('Phone Bill'),true,59.00,''),
-      t(mm,'15','Entertainment – Movies','personal:'+slug('Entertainment'),false,21.50,''),
-      t(mm,'17','Household Supplies','household:'+slug('Household Supplies'),true,14.90,''),
-      t(mm,'20','Credit Card Minimum','debt:'+slug('Credit Cards'),true,60,''),
-      t(mm,'23','Co-pay','medical:'+slug('Co-pays & Prescriptions'),true,25,''),
-      t(mm,'25','Internet','utilities:'+slug('Internet/Cable'),true,70,''),
-      t(mm,'27','Shopping – T-shirt','personal:'+slug('Shopping'),false,24.99,'')
+      t(mm,'01','Rent','housing:'+s('Rent/Mortgage'),true,1600),
+      t(mm,'02','Groceries – Trader Joe\'s','food:'+s('Groceries'),true,98.25),
+      t(mm,'03','Car Payment','transport:'+s('Car Payment'),true,320),
+      t(mm,'04','Electric Utility','utilities:'+s('Electricity'),true,88.40),
+      t(mm,'06','Netflix & Gym','fixedother:'+s('Subscriptions'),false,32.99),
+      t(mm,'07','Dining – Thai','food:'+s('Dining Out'),false,28.75),
+      t(mm,'09','Gas','othervar:'+s('Fuel/Gas'),true,42.10),
+      t(mm,'12','Phone Bill','utilities:'+s('Phone Bill'),true,59.00),
+      t(mm,'15','Entertainment – Movies','personal:'+s('Entertainment'),false,21.50),
+      t(mm,'17','Household Supplies','household:'+s('Household Supplies'),true,14.90),
+      t(mm,'20','Credit Card Minimum','debt:'+s('Credit Cards'),true,60),
+      t(mm,'23','Co-pay','medical:'+s('Co-pays & Prescriptions'),true,25),
+      t(mm,'25','Internet','utilities:'+s('Internet/Cable'),true,70),
+      t(mm,'27','Shopping – T-shirt','personal:'+s('Shopping'),false,24.99),
+      t(mm,'20','Credit Card (extra)','debt:'+s('Credit Cards'),true,40,'Extra payment')
     ];
 
-    // goals & savings
     STATE.goals = [
       {id:uid(), name:'Emergency Fund', target:5000, archived:false},
       {id:uid(), name:'Vacation', target:1500, archived:false}
@@ -703,15 +646,7 @@
       {id:uid(), date:`${mm}-05`, goalId:STATE.goals[0].id, amount:150},
       {id:uid(), date:`${mm}-18`, goalId:STATE.goals[1].id, amount:100}
     ];
-
-    // debt extra
-    m.debtExtra = [
-      {id:uid(), date:`${mm}-20`, name:'Credit Card', amount:40}
-    ];
-    // mirror extra already added into transactions by debtForm logic? Do that here manually:
-    m.transactions.push(t(mm,'20','Credit Card (extra)','debt:'+slug('Credit Cards'),true,40,'Extra payment'));
-
-    function t(ym,dd,desc,cat,need,amt,notes){ return {id:uid(), date:`${ym}-${dd}`, desc, category:cat, need, amount:amt, notes}; }
+    m.debtExtra = [ {id:uid(), date:`${mm}-20`, name:'Credit Card', amount:40} ];
   }
 
 })();
