@@ -14,13 +14,11 @@
 
   <!-- PWA manifest -->
   <link rel="manifest" href="manifest.webmanifest" />
-
-  <!-- Theme colors -->
   <meta name="theme-color" content="#0ea5e9" />
 
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Chart.js (kept via CDN; cached by service worker after first load) -->
+  <!-- Chart.js -->
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
           integrity="sha384-Qx8u90W5xCuD5RLcbYV2F6T+byDgOQVOvJr2Z8QQ7JrGdF3uz6Zfx9qrZJ8uY0m+"
           crossorigin="anonymous"></script>
@@ -30,36 +28,41 @@
 <body>
   <header class="app-header">
     <div class="safe-edge"></div>
-    <div class="topbar">
-      <img src="assets/logo.svg" alt="" class="logo" />
-      <h1>Budget Buddy</h1>
-      <button id="btn-open-menu" class="icon-btn" aria-label="Open menu">☰</button>
-    </div>
 
-    <!-- Quick Glance "widget-like" tiles -->
-    <section class="tiles" role="region" aria-label="Monthly overview">
-      <div class="tile">
-        <div class="tile-label">Month</div>
-        <input id="monthPicker" type="month" aria-label="Select month" />
+    <div class="container">
+      <div class="topbar">
+        <img src="assets/logo.svg" alt="" class="logo" />
+        <h1 class="app-title">Budget Buddy</h1>
+        <button id="btn-open-menu" class="icon-btn" aria-label="Open menu">☰</button>
       </div>
-      <div class="tile">
-        <div class="tile-label">Income</div>
-        <div class="tile-value" id="tl-income">$0</div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Expenses</div>
-        <div class="tile-value" id="tl-expenses">$0</div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Budget Result</div>
-        <div class="tile-value" id="tl-result">$0</div>
-      </div>
-    </section>
+
+      <!-- Uniform, responsive tiles -->
+      <section class="tiles" role="region" aria-label="Monthly overview">
+        <article class="tile tile--month">
+          <p class="tile-label">Month</p>
+          <div class="tile-control">
+            <input id="monthPicker" type="month" aria-label="Select month" />
+          </div>
+        </article>
+        <article class="tile">
+          <p class="tile-label">Income</p>
+          <p class="tile-value" id="tl-income">$0</p>
+        </article>
+        <article class="tile">
+          <p class="tile-label">Expenses</p>
+          <p class="tile-value" id="tl-expenses">$0</p>
+        </article>
+        <article class="tile">
+          <p class="tile-label">Budget Result</p>
+          <p class="tile-value" id="tl-result">$0</p>
+        </article>
+      </section>
+    </div>
   </header>
 
   <nav id="sheet-menu" class="sheet" aria-hidden="true" aria-label="Menu">
     <button class="sheet-close" id="btn-close-menu" aria-label="Close menu">✕</button>
-    <div class="sheet-content">
+    <div class="sheet-content container">
       <button class="menu-action" id="btn-export">⬇️ Export Data (JSON)</button>
       <label class="menu-action file">
         ⬆️ Import Data (JSON)
@@ -67,57 +70,90 @@
       </label>
       <button class="menu-action warn" id="btn-clear-month">🧹 Reset Current Month</button>
       <button class="menu-action" id="btn-load-sample">✨ Load Sample Data</button>
-      <a class="menu-action" href="#help">❓ Help</a>
+      <a class="menu-action" href="#style-primer">🎨 Styling Primer</a>
     </div>
   </nav>
 
-  <main>
+  <main class="container">
     <!-- Income -->
-    <section class="card" id="income-section">
+    <section class="card">
       <h2>Monthly Income</h2>
       <form id="income-form" class="row-form" autocomplete="off">
-        <input type="text" id="income-source" placeholder="Source (Paycheck, Side hustle…)" required />
-        <input type="number" inputmode="decimal" step="0.01" min="0" id="income-amount" placeholder="Amount" required />
-        <button type="submit" class="btn">Add Income</button>
+        <label class="field">
+          <span class="field-label">Source</span>
+          <input type="text" id="income-source" placeholder="Paycheck, Side hustle…" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Amount</span>
+          <input type="number" inputmode="decimal" step="0.01" min="0" id="income-amount" placeholder="0.00" required />
+        </label>
+        <button type="submit" class="btn">Add</button>
       </form>
-      <table class="table" aria-label="Income list">
-        <thead>
-          <tr><th>Source</th><th class="r">Amount</th><th class="c">Actions</th></tr>
-        </thead>
-        <tbody id="income-tbody"></tbody>
-        <tfoot>
-          <tr><th>Total</th><th class="r" id="income-total">$0</th><th></th></tr>
-        </tfoot>
-      </table>
+
+      <div class="table-wrap">
+        <table class="table" aria-label="Income list">
+          <thead>
+            <tr><th>Source</th><th class="r">Amount</th><th class="c">Actions</th></tr>
+          </thead>
+          <tbody id="income-tbody"></tbody>
+          <tfoot>
+            <tr><th>Total</th><th class="r" id="income-total">$0</th><th></th></tr>
+          </tfoot>
+        </table>
+      </div>
     </section>
 
     <!-- Budget Planner -->
-    <section class="card" id="budget-section">
+    <section class="card">
       <h2>Budget Planner</h2>
       <p class="muted">Set your budgeted amounts per category for the selected month.</p>
-      <div id="budget-groups"><!-- built by JS --></div>
+      <div id="budget-groups" class="budget-grid"><!-- built by JS --></div>
       <div class="totals">
         <div>Budgeted Total: <strong id="budgeted-total">$0</strong></div>
       </div>
     </section>
 
     <!-- Transactions -->
-    <section class="card" id="transactions-section">
+    <section class="card">
       <h2>Track Expenses</h2>
       <form id="tx-form" class="grid-form" autocomplete="off">
-        <input type="date" id="tx-date" required />
-        <input type="text" id="tx-desc" placeholder="Item/Description (e.g., Groceries @ Trader Joe's)" required />
-        <select id="tx-category" required></select>
-        <select id="tx-needwant" aria-label="Need or Want">
-          <option value="need">Need</option>
-          <option value="want">Want</option>
-        </select>
-        <input type="number" inputmode="decimal" step="0.01" min="0" id="tx-amount" placeholder="Actual Amount" required />
-        <input type="text" id="tx-notes" placeholder="Notes (why over/under…)" />
-        <button class="btn" type="submit">Add Expense</button>
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input type="date" id="tx-date" required />
+        </label>
+
+        <label class="field field--wide">
+          <span class="field-label">Description</span>
+          <input type="text" id="tx-desc" placeholder="Groceries @ Trader Joe's" required />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Category</span>
+          <select id="tx-category" required></select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Need / Want</span>
+          <select id="tx-needwant" aria-label="Need or Want">
+            <option value="need">Need</option>
+            <option value="want">Want</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Amount</span>
+          <input type="number" inputmode="decimal" step="0.01" min="0" id="tx-amount" placeholder="0.00" required />
+        </label>
+
+        <label class="field field--wide">
+          <span class="field-label">Notes</span>
+          <input type="text" id="tx-notes" placeholder="Why over/under…" />
+        </label>
+
+        <button class="btn form-submit" type="submit">Add</button>
       </form>
 
-      <div class="scroll-x">
+      <div class="table-wrap">
         <table class="table" aria-label="Transactions">
           <thead>
             <tr>
@@ -134,77 +170,120 @@
     </section>
 
     <!-- Savings & Goals -->
-    <section class="card" id="savings-section">
+    <section class="card">
       <h2>Savings & Goals</h2>
+
       <form id="goal-form" class="row-form" autocomplete="off">
-        <input type="text" id="goal-name" placeholder="Goal name (Emergency Fund, Vacation…)" required />
-        <input type="number" step="0.01" min="0" id="goal-target" placeholder="Target amount" required />
-        <button class="btn" type="submit">Add Goal</button>
+        <label class="field">
+          <span class="field-label">Goal name</span>
+          <input type="text" id="goal-name" placeholder="Emergency Fund, Vacation…" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Target amount</span>
+          <input type="number" step="0.01" min="0" id="goal-target" placeholder="0.00" required />
+        </label>
+        <button class="btn">Add goal</button>
       </form>
 
-      <div id="goal-list"><!-- populated by JS --></div>
+      <div id="goal-list" class="goal-list"><!-- populated by JS --></div>
 
       <form id="save-form" class="row-form" autocomplete="off">
-        <select id="save-goal" required></select>
-        <input type="date" id="save-date" required />
-        <input type="number" step="0.01" min="0" id="save-amount" placeholder="Saved amount" required />
-        <button class="btn" type="submit">Add Saving</button>
+        <label class="field">
+          <span class="field-label">Goal</span>
+          <select id="save-goal" required></select>
+        </label>
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input type="date" id="save-date" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Amount</span>
+          <input type="number" step="0.01" min="0" id="save-amount" placeholder="0.00" required />
+        </label>
+        <button class="btn">Add saving</button>
       </form>
 
-      <table class="table">
-        <thead><tr><th>Date</th><th>Goal</th><th class="r">Amount</th><th class="c">Actions</th></tr></thead>
-        <tbody id="save-tbody"></tbody>
-        <tfoot><tr><th colspan="2">This Month Saved</th><th class="r" id="save-total">$0</th><th></th></tr></tfoot>
-      </table>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Date</th><th>Goal</th><th class="r">Amount</th><th class="c">Actions</th></tr></thead>
+          <tbody id="save-tbody"></tbody>
+          <tfoot><tr><th colspan="2">This Month Saved</th><th class="r" id="save-total">$0</th><th></th></tr></tfoot>
+        </table>
+      </div>
     </section>
 
     <!-- Debt Extra Payments -->
-    <section class="card" id="debt-section">
+    <section class="card">
       <h2>Debt Repayment (Extra)</h2>
       <form id="debt-form" class="row-form" autocomplete="off">
-        <input type="text" id="debt-name" placeholder="Debt name (Card, Student Loan…)" required />
-        <input type="date" id="debt-date" required />
-        <input type="number" step="0.01" min="0" id="debt-amount" placeholder="Extra payment amount" required />
-        <button class="btn" type="submit">Add Extra Payment</button>
+        <label class="field">
+          <span class="field-label">Debt name</span>
+          <input type="text" id="debt-name" placeholder="Card, Student Loan…" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input type="date" id="debt-date" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Amount</span>
+          <input type="number" step="0.01" min="0" id="debt-amount" placeholder="0.00" required />
+        </label>
+        <button class="btn">Add payment</button>
       </form>
-      <table class="table">
-        <thead><tr><th>Date</th><th>Debt</th><th class="r">Extra Paid</th><th class="c">Actions</th></tr></thead>
-        <tbody id="debt-tbody"></tbody>
-        <tfoot><tr><th colspan="2">Extra Payments Total</th><th class="r" id="debt-total">$0</th><th></th></tr></tfoot>
-      </table>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Date</th><th>Debt</th><th class="r">Extra Paid</th><th class="c">Actions</th></tr></thead>
+          <tbody id="debt-tbody"></tbody>
+          <tfoot><tr><th colspan="2">Extra Payments Total</th><th class="r" id="debt-total">$0</th><th></th></tr></tfoot>
+        </table>
+      </div>
     </section>
 
     <!-- Analytics / Charts -->
-    <section class="card" id="charts-section">
+    <section class="card">
       <h2>Analytics</h2>
       <div class="charts">
         <div class="chart">
           <h3>Spending by Category</h3>
-          <canvas id="chart-category" height="180"></canvas>
+          <canvas id="chart-category" height="180" aria-label="Spending by Category"></canvas>
         </div>
         <div class="chart">
           <h3>Budget vs Actual</h3>
-          <canvas id="chart-budget" height="180"></canvas>
+          <canvas id="chart-budget" height="180" aria-label="Budget vs Actual"></canvas>
         </div>
         <div class="chart">
           <h3>Needs vs Wants</h3>
-          <canvas id="chart-needwant" height="180"></canvas>
+          <canvas id="chart-needwant" height="180" aria-label="Needs vs Wants"></canvas>
         </div>
         <div class="chart">
           <h3>Cumulative Cashflow</h3>
-          <canvas id="chart-cashflow" height="180"></canvas>
+          <canvas id="chart-cashflow" height="180" aria-label="Cumulative Cashflow"></canvas>
         </div>
       </div>
     </section>
 
-    <!-- Help -->
-    <section class="card" id="help">
-      <h2>Help & Tips</h2>
-      <ul>
-        <li><strong>Add to Home Screen:</strong> Safari → Share → <em>Add to Home Screen</em> for the “widget-feel” launch.</li>
-        <li><strong>iOS Shortcut Widget (optional):</strong> Create a Shortcut that opens your site URL, then place that Shortcut as a Home Screen widget.</li>
-        <li><strong>Privacy:</strong> Data is saved locally in your browser storage. Export regularly if switching devices.</li>
-      </ul>
+    <!-- Styling Primer (emphasized bullets) -->
+    <section class="card" id="style-primer" aria-labelledby="style-title">
+      <h2 id="style-title">Styling Primer</h2>
+      <div class="two-col">
+        <div class="callout">
+          <h3>Styling</h3>
+          <ul class="bullets">
+            <li><strong>Typography</strong>: The style and appearance of text, including fonts, sizing, and spacing.</li>
+            <li><strong>Color palette</strong>: The collection of colors used to represent the brand and add visual appeal.</li>
+            <li><strong>Visual hierarchy</strong>: The arrangement of elements to show their level of importance, guiding the user's eye.</li>
+            <li><strong>Animations</strong>: Small movements or effects that enhance the user's interaction and make the interface more dynamic.</li>
+          </ul>
+        </div>
+        <div class="callout">
+          <h3>Common design styles</h3>
+          <ul class="bullets">
+            <li><strong>Flat design</strong>: A minimalist style with simple, two-dimensional elements and vibrant colors.</li>
+            <li><strong>Material design</strong>: Google’s layered, tactile system that uses depth, motion, and elevation.</li>
+          </ul>
+        </div>
+      </div>
     </section>
 
     <footer class="app-footer">
