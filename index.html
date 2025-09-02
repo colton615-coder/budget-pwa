@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Budget Buddy</title>
+
+  <!-- iOS PWA meta -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Budget Buddy" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.webmanifest" />
+
+  <!-- Theme colors -->
+  <meta name="theme-color" content="#0ea5e9" />
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Chart.js (kept via CDN; cached by service worker after first load) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
+          integrity="sha384-Qx8u90W5xCuD5RLcbYV2F6T+byDgOQVOvJr2Z8QQ7JrGdF3uz6Zfx9qrZJ8uY0m+"
+          crossorigin="anonymous"></script>
+
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="safe-edge"></div>
+    <div class="topbar">
+      <img src="assets/logo.svg" alt="" class="logo" />
+      <h1>Budget Buddy</h1>
+      <button id="btn-open-menu" class="icon-btn" aria-label="Open menu">☰</button>
+    </div>
+
+    <!-- Quick Glance "widget-like" tiles -->
+    <section class="tiles" role="region" aria-label="Monthly overview">
+      <div class="tile">
+        <div class="tile-label">Month</div>
+        <input id="monthPicker" type="month" aria-label="Select month" />
+      </div>
+      <div class="tile">
+        <div class="tile-label">Income</div>
+        <div class="tile-value" id="tl-income">$0</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Expenses</div>
+        <div class="tile-value" id="tl-expenses">$0</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Budget Result</div>
+        <div class="tile-value" id="tl-result">$0</div>
+      </div>
+    </section>
+  </header>
+
+  <nav id="sheet-menu" class="sheet" aria-hidden="true" aria-label="Menu">
+    <button class="sheet-close" id="btn-close-menu" aria-label="Close menu">✕</button>
+    <div class="sheet-content">
+      <button class="menu-action" id="btn-export">⬇️ Export Data (JSON)</button>
+      <label class="menu-action file">
+        ⬆️ Import Data (JSON)
+        <input id="file-import" type="file" accept="application/json" />
+      </label>
+      <button class="menu-action warn" id="btn-clear-month">🧹 Reset Current Month</button>
+      <button class="menu-action" id="btn-load-sample">✨ Load Sample Data</button>
+      <a class="menu-action" href="#help">❓ Help</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Income -->
+    <section class="card" id="income-section">
+      <h2>Monthly Income</h2>
+      <form id="income-form" class="row-form" autocomplete="off">
+        <input type="text" id="income-source" placeholder="Source (Paycheck, Side hustle…)" required />
+        <input type="number" inputmode="decimal" step="0.01" min="0" id="income-amount" placeholder="Amount" required />
+        <button type="submit" class="btn">Add Income</button>
+      </form>
+      <table class="table" aria-label="Income list">
+        <thead>
+          <tr><th>Source</th><th class="r">Amount</th><th class="c">Actions</th></tr>
+        </thead>
+        <tbody id="income-tbody"></tbody>
+        <tfoot>
+          <tr><th>Total</th><th class="r" id="income-total">$0</th><th></th></tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <!-- Budget Planner -->
+    <section class="card" id="budget-section">
+      <h2>Budget Planner</h2>
+      <p class="muted">Set your budgeted amounts per category for the selected month.</p>
+      <div id="budget-groups"><!-- built by JS --></div>
+      <div class="totals">
+        <div>Budgeted Total: <strong id="budgeted-total">$0</strong></div>
+      </div>
+    </section>
+
+    <!-- Transactions -->
+    <section class="card" id="transactions-section">
+      <h2>Track Expenses</h2>
+      <form id="tx-form" class="grid-form" autocomplete="off">
+        <input type="date" id="tx-date" required />
+        <input type="text" id="tx-desc" placeholder="Item/Description (e.g., Groceries @ Trader Joe's)" required />
+        <select id="tx-category" required></select>
+        <select id="tx-needwant" aria-label="Need or Want">
+          <option value="need">Need</option>
+          <option value="want">Want</option>
+        </select>
+        <input type="number" inputmode="decimal" step="0.01" min="0" id="tx-amount" placeholder="Actual Amount" required />
+        <input type="text" id="tx-notes" placeholder="Notes (why over/under…)" />
+        <button class="btn" type="submit">Add Expense</button>
+      </form>
+
+      <div class="scroll-x">
+        <table class="table" aria-label="Transactions">
+          <thead>
+            <tr>
+              <th>Date</th><th>Description</th><th>Category</th>
+              <th>Need/Want</th><th class="r">Amount</th><th>Notes</th><th class="c">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tx-tbody"></tbody>
+          <tfoot>
+            <tr><th colspan="4">Total Expenses</th><th class="r" id="tx-total">$0</th><th colspan="2"></th></tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <!-- Savings & Goals -->
+    <section class="card" id="savings-section">
+      <h2>Savings & Goals</h2>
+      <form id="goal-form" class="row-form" autocomplete="off">
+        <input type="text" id="goal-name" placeholder="Goal name (Emergency Fund, Vacation…)" required />
+        <input type="number" step="0.01" min="0" id="goal-target" placeholder="Target amount" required />
+        <button class="btn" type="submit">Add Goal</button>
+      </form>
+
+      <div id="goal-list"><!-- populated by JS --></div>
+
+      <form id="save-form" class="row-form" autocomplete="off">
+        <select id="save-goal" required></select>
+        <input type="date" id="save-date" required />
+        <input type="number" step="0.01" min="0" id="save-amount" placeholder="Saved amount" required />
+        <button class="btn" type="submit">Add Saving</button>
+      </form>
+
+      <table class="table">
+        <thead><tr><th>Date</th><th>Goal</th><th class="r">Amount</th><th class="c">Actions</th></tr></thead>
+        <tbody id="save-tbody"></tbody>
+        <tfoot><tr><th colspan="2">This Month Saved</th><th class="r" id="save-total">$0</th><th></th></tr></tfoot>
+      </table>
+    </section>
+
+    <!-- Debt Extra Payments -->
+    <section class="card" id="debt-section">
+      <h2>Debt Repayment (Extra)</h2>
+      <form id="debt-form" class="row-form" autocomplete="off">
+        <input type="text" id="debt-name" placeholder="Debt name (Card, Student Loan…)" required />
+        <input type="date" id="debt-date" required />
+        <input type="number" step="0.01" min="0" id="debt-amount" placeholder="Extra payment amount" required />
+        <button class="btn" type="submit">Add Extra Payment</button>
+      </form>
+      <table class="table">
+        <thead><tr><th>Date</th><th>Debt</th><th class="r">Extra Paid</th><th class="c">Actions</th></tr></thead>
+        <tbody id="debt-tbody"></tbody>
+        <tfoot><tr><th colspan="2">Extra Payments Total</th><th class="r" id="debt-total">$0</th><th></th></tr></tfoot>
+      </table>
+    </section>
+
+    <!-- Analytics / Charts -->
+    <section class="card" id="charts-section">
+      <h2>Analytics</h2>
+      <div class="charts">
+        <div class="chart">
+          <h3>Spending by Category</h3>
+          <canvas id="chart-category" height="180"></canvas>
+        </div>
+        <div class="chart">
+          <h3>Budget vs Actual</h3>
+          <canvas id="chart-budget" height="180"></canvas>
+        </div>
+        <div class="chart">
+          <h3>Needs vs Wants</h3>
+          <canvas id="chart-needwant" height="180"></canvas>
+        </div>
+        <div class="chart">
+          <h3>Cumulative Cashflow</h3>
+          <canvas id="chart-cashflow" height="180"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Help -->
+    <section class="card" id="help">
+      <h2>Help & Tips</h2>
+      <ul>
+        <li><strong>Add to Home Screen:</strong> Safari → Share → <em>Add to Home Screen</em> for the “widget-feel” launch.</li>
+        <li><strong>iOS Shortcut Widget (optional):</strong> Create a Shortcut that opens your site URL, then place that Shortcut as a Home Screen widget.</li>
+        <li><strong>Privacy:</strong> Data is saved locally in your browser storage. Export regularly if switching devices.</li>
+      </ul>
+    </section>
+
+    <footer class="app-footer">
+      <div id="status" role="status" aria-live="polite"></div>
+      <div class="safe-edge"></div>
+    </footer>
+  </main>
+
+  <!-- install Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(console.error);
+      });
+    }
+  </script>
+</body>
+</html>
