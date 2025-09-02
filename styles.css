@@ -80,22 +80,86 @@ input[type="number"]{text-align:right}
 .grid-form{grid-template-columns:repeat(6,1fr); align-items:end}
 .field--wide{grid-column:span 2}
 .form-submit{grid-column:-2/-1}
-@media (max-width:900px){ .row-form{grid-template-columns:1fr 1fr} .grid-form{grid-template-columns:1fr 1fr} .form-submit{grid-column:1/-1} .field--wide{grid-column:1/-1} }
-
-/* Tables — no horizontal scroll: wrap content, no min-width */
-.table-wrap{overflow-x:hidden; border-radius:12px; border:1px solid var(--outline)}
-.table{width:100%; border-collapse:collapse; table-layout:fixed; background:#0b1220}
-.table th,.table td{padding:.75rem .6rem; border-bottom:1px solid var(--outline); vertical-align:top; white-space:normal; word-break:break-word}
-.table th{color:#cfe7ff; text-align:left}
-.r{text-align:right}.c{text-align:center}
-
-/* Budget groups */
+@media (max-width:900px){ .row-form{grid-template-columns:1fr 1fr} .grid-form{grid-template-columns:1fr 1fr} .form-submit{grid-column:1/-1} .field--wide{grid-column:1/-
 .budget-grid .group{margin:.6rem 0 .9rem; border:1px dashed #183a55; border-radius:12px; padding:.7rem}
 .budget-grid h4{margin:.2rem .2rem .5rem}
 .budget-grid .row{display:grid; grid-template-columns:1fr 150px; gap:.5rem; align-items:center; margin:.35rem 0}
 @media (max-width:640px){ .budget-grid .row{grid-template-columns:1fr} }
 .color-dot{width:10px; height:10px; border-radius:50%; display:inline-block}
 
+ /* ======= Tables — responsive, no horizontal scrolling ======= */
+.table-wrap{
+  overflow: visible;                      /* no horizontal scroll */
+  border-radius: 12px;
+  border: 1px solid var(--outline);
+  background: #0b1220;
+}
+
+.table{
+  width: 100%;
+  border-collapse: collapse;
+  background: transparent;
+  /* allow natural column sizing on wide screens */
+  table-layout: auto;
+}
+
+.table th,
+.table td{
+  padding: .75rem .65rem;
+  border-bottom: 1px solid var(--outline);
+  vertical-align: top;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: anywhere;                 /* wrap long text sensibly */
+}
+
+.table th{ color:#cfe7ff; text-align:left; font-weight:700 }
+.r{ text-align:right } .c{ text-align:center }
+
+/* ----- Stack into cards on small screens ----- */
+@media (max-width: 560px){
+  .table{ display: block; }
+  .table thead{
+    /* hide the header row but keep accessibility */
+    position: absolute; left: -9999px; top: -9999px;
+    height: 0; width: 0; overflow: hidden;
+  }
+  .table tbody{ display: block; }
+  .table tr{
+    display: block;
+    border: 1px solid var(--outline);
+    border-radius: 12px;
+    margin: .6rem 0;
+    overflow: hidden;
+    background: #0b1520;
+  }
+  .table td{
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: .75rem;
+    border-bottom: 1px solid rgba(255,255,255,.05);
+    padding: .7rem .8rem;
+  }
+  .table td:last-child{ border-bottom: none; }
+
+  /* show the column label on the left via data-label */
+  .table td::before{
+    content: attr(data-label);
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  /* alignment helpers still work when stacked */
+  .table td.r{ text-align: right }
+  .table td.c{ justify-content: center }
+}
+
+/* Make the submit button span full width on mobile grids */
+@media (max-width: 900px){
+  .form-submit{ grid-column: 1 / -1; }
+}                        
+                         
 /* Charts */
 .charts{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.8rem}
 @media (max-width:980px){ .charts{grid-template-columns:1fr} }
