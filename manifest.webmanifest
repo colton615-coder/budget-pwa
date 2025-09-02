@@ -1,7 +1,7 @@
 {
   "name": "Budget Buddy",
   "short_name": "Budget",
-  "description": "Track income, expenses, budgets, savings & debt — color-coded and iPhone friendly.",
+  "description": "Emoji-tabbed budget PWA: income, expenses, budgets, savings, debt, analytics & settings.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0a0f14",
