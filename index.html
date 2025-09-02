@@ -13,6 +13,7 @@
 
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0ea5e9" />
+
   <link rel="stylesheet" href="styles.css" />
 
   <!-- Chart.js -->
@@ -25,107 +26,99 @@
 <body>
   <header class="app-header">
     <div class="safe-edge"></div>
-    <div class="container topbar">
-      <img src="assets/logo.svg" alt="" class="logo" />
-      <h1 class="app-title">Budget Buddy</h1>
-      <button id="btn-open-menu" class="icon-btn" aria-label="Open menu">☰</button>
+    <div class="wrap">
+      <div class="brand">
+        <img src="assets/logo.svg" alt="" width="28" height="28" />
+        <h1>Budget Buddy</h1>
+      </div>
+      <div class="month-switcher">
+        <label class="sr-only" for="monthPicker">Month</label>
+        <input id="monthPicker" type="month" />
+      </div>
     </div>
   </header>
 
-  <!-- Bottom emoji tabs -->
-  <nav class="tabs" role="tablist" aria-label="Primary">
-    <button role="tab" aria-selected="true" aria-controls="panel-overview" id="tab-overview">🏠</button>
-    <button role="tab" aria-selected="false" aria-controls="panel-income" id="tab-income">💰</button>
-    <button role="tab" aria-selected="false" aria-controls="panel-budget" id="tab-budget">🧾</button>
-    <button role="tab" aria-selected="false" aria-controls="panel-expenses" id="tab-expenses">🛒</button>
-    <button role="tab" aria-selected="false" aria-controls="panel-savings" id="tab-savings">🎯</button>
-    <button role="tab" aria-selected="false" aria-controls="panel-debt" id="tab-debt">💳</button>
-    <button role="tab" aria-selected="false" aria-controls="panel-charts" id="tab-charts">📊</button>
-    <button role="tab" aria-selected="false" aria-controls="panel-style" id="tab-style">🎨</button>
-    <button role="tab" aria-selected="false" aria-controls="panel-settings" id="tab-settings">⚙️</button>
+  <!-- TABS -->
+  <nav id="tabs" class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab is-active" role="tab" aria-selected="true" aria-controls="panel-overview" data-tab="overview">
+      <span class="i">🏠</span><span class="t">Overview</span>
+    </button>
+    <button class="tab" role="tab" aria-controls="panel-planner" data-tab="planner">
+      <span class="i">🧮</span><span class="t">Planner</span>
+    </button>
+    <button class="tab" role="tab" aria-controls="panel-expenses" data-tab="expenses">
+      <span class="i">🧾</span><span class="t">Expenses</span>
+    </button>
+    <button class="tab" role="tab" aria-controls="panel-goals" data-tab="goals">
+      <span class="i">🎯</span><span class="t">Goals</span>
+    </button>
+    <button class="tab" role="tab" aria-controls="panel-settings" data-tab="settings">
+      <span class="i">⚙️</span><span class="t">Settings</span>
+    </button>
   </nav>
 
-  <!-- Slide-up menu -->
-  <nav id="sheet-menu" class="sheet" aria-hidden="true" aria-label="Menu">
-    <button class="sheet-close" id="btn-close-menu" aria-label="Close menu">✕</button>
-    <div class="sheet-content container">
-      <button class="menu-action" id="btn-export">⬇️ Export Data (JSON)</button>
-      <label class="menu-action file">
-        ⬆️ Import Data (JSON)
-        <input id="file-import" type="file" accept="application/json" />
-      </label>
-      <button class="menu-action warn" id="btn-clear-month">🧹 Reset Current Month</button>
-      <button class="menu-action" id="btn-load-sample">✨ Load Sample Data</button>
-    </div>
-  </nav>
-
-  <main class="container main">
+  <main class="wrap main">
 
     <!-- OVERVIEW -->
     <section id="panel-overview" class="panel is-active" role="tabpanel" aria-labelledby="tab-overview">
-      <section class="tiles" aria-label="Monthly overview">
-        <article class="tile tile--month">
-          <p class="tile-label">Month</p>
-          <input id="monthPicker" type="month" aria-label="Select month" />
+      <section class="grid-tiles">
+        <article class="tile">
+          <p class="k">Income</p>
+          <p class="v" id="tl-income">$0</p>
         </article>
         <article class="tile">
-          <p class="tile-label">Income</p>
-          <p class="tile-value" id="tl-income">$0</p>
+          <p class="k">Expenses</p>
+          <p class="v" id="tl-expenses">$0</p>
         </article>
         <article class="tile">
-          <p class="tile-label">Expenses</p>
-          <p class="tile-value" id="tl-expenses">$0</p>
-        </article>
-        <article class="tile">
-          <p class="tile-label">Budget Result</p>
-          <p class="tile-value" id="tl-result">$0</p>
+          <p class="k">Budget Result</p>
+          <p class="v" id="tl-result">$0</p>
         </article>
       </section>
 
       <section class="card">
-        <h2>Quick Tips</h2>
-        <ul class="muted">
-          <li>Tap the emoji tabs below to navigate.</li>
-          <li>Use ⚙️ to set constants like currency & pay schedule.</li>
-          <li>Use ☰ to export/import or load sample data.</li>
-        </ul>
+        <h2>Quick actions</h2>
+        <div class="actions">
+          <button id="qa-add-income" class="btn">Add Income</button>
+          <button id="qa-add-expense" class="btn">Add Expense</button>
+          <button id="qa-load-sample" class="btn ghost">Load Sample</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Analytics</h2>
+        <div id="charts" class="charts">
+          <div class="chart"><h3>Spending by Category</h3><canvas id="chart-category" height="160"></canvas></div>
+          <div class="chart"><h3>Budget vs Actual</h3><canvas id="chart-budget" height="160"></canvas></div>
+          <div class="chart"><h3>Needs vs Wants</h3><canvas id="chart-needwant" height="160"></canvas></div>
+          <div class="chart"><h3>Cumulative Cashflow</h3><canvas id="chart-cashflow" height="160"></canvas></div>
+        </div>
       </section>
     </section>
 
-    <!-- INCOME -->
-    <section id="panel-income" class="panel" role="tabpanel" aria-labelledby="tab-income">
+    <!-- PLANNER (Income + Budgets) -->
+    <section id="panel-planner" class="panel" role="tabpanel" aria-labelledby="tab-planner">
       <section class="card">
         <h2>Monthly Income</h2>
-        <form id="income-form" class="row-form" autocomplete="off">
-          <label class="field">
-            <span class="field-label">Source</span>
-            <input type="text" id="income-source" placeholder="Paycheck, Side hustle…" required />
-          </label>
-          <label class="field">
-            <span class="field-label">Amount</span>
-            <input type="number" inputmode="decimal" step="0.01" min="0" id="income-amount" placeholder="0.00" required />
-          </label>
-          <button type="submit" class="btn">Add</button>
+        <form id="income-form" class="row">
+          <label class="field"><span>Source</span><input id="income-source" type="text" required placeholder="Paycheck, Side hustle…"></label>
+          <label class="field"><span>Amount</span><input id="income-amount" type="number" step="0.01" inputmode="decimal" min="0" required placeholder="0.00"></label>
+          <button class="btn">Add</button>
         </form>
         <div class="table-wrap">
-          <table class="table" aria-label="Income list">
-            <thead><tr><th>Source</th><th class="r">Amount</th><th class="c">Actions</th></tr></thead>
+          <table class="table">
+            <thead><tr><th>Source</th><th class="r">Amount</th><th class="c">Action</th></tr></thead>
             <tbody id="income-tbody"></tbody>
             <tfoot><tr><th>Total</th><th class="r" id="income-total">$0</th><th></th></tr></tfoot>
           </table>
         </div>
       </section>
-    </section>
 
-    <!-- BUDGET -->
-    <section id="panel-budget" class="panel" role="tabpanel" aria-labelledby="tab-budget">
       <section class="card">
         <h2>Budget Planner</h2>
-        <p class="muted">Set your budgeted amounts per category for the selected month.</p>
-        <div id="budget-groups" class="budget-grid"><!-- built by JS --></div>
-        <div class="totals">
-          <div>Budgeted Total: <strong id="budgeted-total">$0</strong></div>
-        </div>
+        <p class="muted">Set a budget per category for <strong id="bp-month-label"></strong>.</p>
+        <div id="budget-groups" class="budget-grid"></div>
+        <div class="totals">Budgeted Total: <strong id="budgeted-total">$0</strong></div>
       </section>
     </section>
 
@@ -133,152 +126,54 @@
     <section id="panel-expenses" class="panel" role="tabpanel" aria-labelledby="tab-expenses">
       <section class="card">
         <h2>Track Expenses</h2>
-        <form id="tx-form" class="grid-form" autocomplete="off">
-          <label class="field">
-            <span class="field-label">Date</span>
-            <input type="date" id="tx-date" required />
+        <form id="tx-form" class="grid">
+          <label class="field"><span>Date</span><input id="tx-date" type="date" required></label>
+          <label class="field wide"><span>Description</span><input id="tx-desc" type="text" required placeholder="Groceries @ Trader Joe’s"></label>
+          <label class="field"><span>Category</span><select id="tx-category" required></select></label>
+          <label class="field"><span>Need / Want</span>
+            <select id="tx-needwant"><option value="need">Need</option><option value="want">Want</option></select>
           </label>
-          <label class="field field--wide">
-            <span class="field-label">Description</span>
-            <input type="text" id="tx-desc" placeholder="Groceries @ Trader Joe's" required />
-          </label>
-          <label class="field">
-            <span class="field-label">Category</span>
-            <select id="tx-category" required></select>
-          </label>
-          <label class="field">
-            <span class="field-label">Need / Want</span>
-            <select id="tx-needwant">
-              <option value="need">Need</option>
-              <option value="want">Want</option>
-            </select>
-          </label>
-          <label class="field">
-            <span class="field-label">Amount</span>
-            <input type="number" inputmode="decimal" step="0.01" min="0" id="tx-amount" placeholder="0.00" required />
-          </label>
-          <label class="field field--wide">
-            <span class="field-label">Notes</span>
-            <input type="text" id="tx-notes" placeholder="Why over/under…" />
-          </label>
-          <button class="btn form-submit" type="submit">Add</button>
+          <label class="field"><span>Amount</span><input id="tx-amount" type="number" step="0.01" inputmode="decimal" min="0" required placeholder="0.00"></label>
+          <label class="field wide"><span>Notes</span><input id="tx-notes" type="text" placeholder="Why over/under…"></label>
+          <button class="btn submit">Add</button>
         </form>
 
         <div class="table-wrap">
-          <table class="table" aria-label="Transactions">
-            <thead>
-              <tr>
-                <th>Date</th><th>Description</th><th>Category</th>
-                <th>Need/Want</th><th class="r">Amount</th><th>Notes</th><th class="c">Actions</th>
-              </tr>
-            </thead>
+          <table class="table">
+            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Need/Want</th><th class="r">Amount</th><th>Notes</th><th class="c">Action</th></tr></thead>
             <tbody id="tx-tbody"></tbody>
-            <tfoot>
-              <tr><th colspan="4">Total Expenses</th><th class="r" id="tx-total">$0</th><th colspan="2"></th></tr>
-            </tfoot>
+            <tfoot><tr><th colspan="4">Total Expenses</th><th class="r" id="tx-total">$0</th><th colspan="2"></th></tr></tfoot>
           </table>
         </div>
       </section>
     </section>
 
-    <!-- SAVINGS -->
-    <section id="panel-savings" class="panel" role="tabpanel" aria-labelledby="tab-savings">
+    <!-- GOALS -->
+    <section id="panel-goals" class="panel" role="tabpanel" aria-labelledby="tab-goals">
       <section class="card">
-        <h2>Savings & Goals</h2>
-        <form id="goal-form" class="row-form" autocomplete="off">
-          <label class="field"><span class="field-label">Goal name</span>
-            <input type="text" id="goal-name" required placeholder="Emergency Fund, Vacation…" /></label>
-          <label class="field"><span class="field-label">Target</span>
-            <input type="number" step="0.01" min="0" id="goal-target" placeholder="0.00" required /></label>
-          <button class="btn">Add goal</button>
+        <h2>Goals</h2>
+        <form id="goal-form" class="row">
+          <label class="field"><span>Name</span><input id="goal-name" required placeholder="Emergency Fund, Vacation…"></label>
+          <label class="field"><span>Target</span><input id="goal-target" type="number" step="0.01" min="0" required placeholder="0.00"></label>
+          <button class="btn">Add Goal</button>
         </form>
+        <div id="goal-list" class="goals"></div>
+      </section>
 
-        <div id="goal-list" class="goal-list"></div>
-
-        <form id="save-form" class="row-form" autocomplete="off">
-          <label class="field"><span class="field-label">Goal</span><select id="save-goal" required></select></label>
-          <label class="field"><span class="field-label">Date</span><input type="date" id="save-date" required /></label>
-          <label class="field"><span class="field-label">Amount</span><input type="number" step="0.01" min="0" id="save-amount" placeholder="0.00" required /></label>
-          <button class="btn">Add saving</button>
+      <section class="card">
+        <h2>Record Savings</h2>
+        <form id="save-form" class="row">
+          <label class="field"><span>Goal</span><select id="save-goal" required></select></label>
+          <label class="field"><span>Date</span><input id="save-date" type="date" required></label>
+          <label class="field"><span>Amount</span><input id="save-amount" type="number" step="0.01" min="0" required placeholder="0.00"></label>
+          <button class="btn">Record</button>
         </form>
-
         <div class="table-wrap">
           <table class="table">
-            <thead><tr><th>Date</th><th>Goal</th><th class="r">Amount</th><th class="c">Actions</th></tr></thead>
+            <thead><tr><th>Date</th><th>Goal</th><th class="r">Amount</th><th class="c">Action</th></tr></thead>
             <tbody id="save-tbody"></tbody>
             <tfoot><tr><th colspan="2">This Month Saved</th><th class="r" id="save-total">$0</th><th></th></tr></tfoot>
           </table>
-        </div>
-      </section>
-    </section>
-
-    <!-- DEBT -->
-    <section id="panel-debt" class="panel" role="tabpanel" aria-labelledby="tab-debt">
-      <section class="card">
-        <h2>Debt Repayment (Extra)</h2>
-        <form id="debt-form" class="row-form" autocomplete="off">
-          <label class="field"><span class="field-label">Debt name</span><input type="text" id="debt-name" required /></label>
-          <label class="field"><span class="field-label">Date</span><input type="date" id="debt-date" required /></label>
-          <label class="field"><span class="field-label">Amount</span><input type="number" step="0.01" min="0" id="debt-amount" placeholder="0.00" required /></label>
-          <button class="btn">Add payment</button>
-        </form>
-
-        <div class="table-wrap">
-          <table class="table">
-            <thead><tr><th>Date</th><th>Debt</th><th class="r">Extra Paid</th><th class="c">Actions</th></tr></thead>
-            <tbody id="debt-tbody"></tbody>
-            <tfoot><tr><th colspan="2">Extra Payments Total</th><th class="r" id="debt-total">$0</th><th></th></tr></tfoot>
-          </table>
-        </div>
-      </section>
-    </section>
-
-    <!-- CHARTS -->
-    <section id="panel-charts" class="panel" role="tabpanel" aria-labelledby="tab-charts">
-      <section class="card">
-        <h2>Analytics</h2>
-        <div class="charts">
-          <div class="chart">
-            <h3>Spending by Category</h3>
-            <canvas id="chart-category" height="180"></canvas>
-          </div>
-          <div class="chart">
-            <h3>Budget vs Actual</h3>
-            <canvas id="chart-budget" height="180"></canvas>
-          </div>
-          <div class="chart">
-            <h3>Needs vs Wants</h3>
-            <canvas id="chart-needwant" height="180"></canvas>
-          </div>
-          <div class="chart">
-            <h3>Cumulative Cashflow</h3>
-            <canvas id="chart-cashflow" height="180"></canvas>
-          </div>
-        </div>
-      </section>
-    </section>
-
-    <!-- STYLE PRIMER -->
-    <section id="panel-style" class="panel" role="tabpanel" aria-labelledby="tab-style">
-      <section class="card">
-        <h2>Styling Primer</h2>
-        <div class="two-col">
-          <div class="callout">
-            <h3>Styling</h3>
-            <ul class="bullets">
-              <li><strong>Typography</strong>: The style and appearance of text, including fonts, sizing, and spacing.</li>
-              <li><strong>Color palette</strong>: The collection of colors used to represent the brand and add visual appeal.</li>
-              <li><strong>Visual hierarchy</strong>: The arrangement of elements to show their level of importance, guiding the user's eye.</li>
-              <li><strong>Animations</strong>: Small movements or effects that enhance the user's interaction and make the interface more dynamic.</li>
-            </ul>
-          </div>
-          <div class="callout">
-            <h3>Common design styles</h3>
-            <ul class="bullets">
-              <li><strong>Flat design</strong>: A minimalist style with simple, two-dimensional elements and vibrant colors.</li>
-              <li><strong>Material design</strong>: A layered, tactile system using depth, motion, and elevation.</li>
-            </ul>
-          </div>
         </div>
       </section>
     </section>
@@ -287,62 +182,59 @@
     <section id="panel-settings" class="panel" role="tabpanel" aria-labelledby="tab-settings">
       <section class="card">
         <h2>Settings</h2>
-        <form id="settings-form" class="settings-grid" autocomplete="off">
-          <label class="field">
-            <span class="field-label">Currency</span>
-            <select id="set-currency">
-              <option>USD</option><option>EUR</option><option>GBP</option>
-              <option>CAD</option><option>AUD</option><option>JPY</option>
-              <option>INR</option><option>SGD</option><option>MXN</option>
-            </select>
+        <form id="settings-form" class="grid-2">
+          <label class="field"><span>Currency</span>
+            <select id="set-currency"><option>USD</option><option>EUR</option><option>GBP</option><option>CAD</option><option>AUD</option><option>JPY</option><option>INR</option><option>MXN</option><option>BRL</option></select>
           </label>
-
-          <label class="field">
-            <span class="field-label">Pay schedule</span>
-            <select id="set-pay">
-              <option value="monthly">Monthly</option>
-              <option value="biweekly">Biweekly</option>
-              <option value="weekly">Weekly</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span class="field-label">Default Month</span>
-            <select id="set-default-month">
-              <option value="current">Current month</option>
-              <option value="last">Last used</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span class="field-label">Compact mode</span>
-            <select id="set-density">
-              <option value="comfortable">Comfortable</option>
-              <option value="compact">Compact</option>
-            </select>
-          </label>
-
-          <label class="field">
-            <span class="field-label">Show charts</span>
-            <select id="set-charts">
-              <option value="on">On</option>
-              <option value="off">Off</option>
-            </select>
-          </label>
-
-          <div class="settings-actions">
-            <button class="btn" type="submit">Save settings</button>
-            <button class="btn secondary" id="settings-reset" type="button">Reset to defaults</button>
-          </div>
+          <label class="field"><span>Brand Hue</span><input id="set-brand" type="color" value="#0ea5e9"></label>
+          <label class="field"><span>Default Need/Want</span><select id="set-default-nw"><option value="need">Need</option><option value="want">Want</option></select></label>
+          <label class="field"><span>Density</span><select id="set-density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+          <label class="field"><span>Charts</span><select id="set-charts"><option value="on">On</option><option value="off">Off</option></select></label>
+          <div class="field"><span>&nbsp;</span><button class="btn">Save Settings</button></div>
         </form>
-        <p class="muted">Settings are stored locally on this device.</p>
       </section>
+
+      <section class="card">
+        <h2>Data</h2>
+        <div class="actions wrap">
+          <button id="btn-export" class="btn">Export (JSON)</button>
+          <label class="btn file">
+            Import (JSON) <input id="file-import" type="file" accept="application/json">
+          </label>
+          <button id="btn-clear-month" class="btn ghost">Reset Current Month</button>
+          <button id="btn-reset-all" class="btn danger">Reset ALL</button>
+        </div>
+        <p class="muted">Stored locally on this device.</p>
+      </section>
+
+      <section class="card">
+        <h2>Styling Primer</h2>
+        <div class="primer">
+          <div class="callout">
+            <h3>Styling</h3>
+            <ul>
+              <li><strong>Typography</strong>: fonts, sizes, spacing.</li>
+              <li><strong>Color palette</strong>: brand + accents.</li>
+              <li><strong>Visual hierarchy</strong>: layout communicates importance.</li>
+              <li><strong>Animations</strong>: subtle, purposeful motion.</li>
+            </ul>
+          </div>
+          <div class="callout">
+            <h3>Common design styles</h3>
+            <ul>
+              <li><strong>Flat design</strong>: minimal, crisp.</li>
+              <li><strong>Material design</strong>: layered, tactile, motion-driven.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <footer class="app-footer">
+        <div id="status" role="status" aria-live="polite"></div>
+        <div class="safe-edge"></div>
+      </footer>
     </section>
 
-    <footer class="app-footer">
-      <div id="status" role="status" aria-live="polite"></div>
-      <div class="safe-edge"></div>
-    </footer>
   </main>
 
   <script>
