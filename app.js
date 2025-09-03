@@ -539,3 +539,75 @@ function init(){
   }
 }
 document.addEventListener('DOMContentLoaded', init);
+// === PATCH v2.7: Manual Backup + JSON Import (append-only) ===
+(function addBackupAndJsonImport(){
+  const hist = document.getElementById('view-history');
+  const row = hist?.querySelector('.row');
+  if(!row) return;
+
+  // Create Backup button (stores a snapshot in localStorage; restore via "Restore Backup")
+  if(!document.getElementById('backupBtn')){
+    const b = document.createElement('button');
+    b.id='backupBtn'; b.className='btn'; b.textContent='Create Backup';
+    b.addEventListener('click', ()=>{
+      const key = (typeof makeBackup==='function') ? makeBackup() : null;
+      alert(key ? ('Backup saved: ' + key) : 'Backup failed');
+    });
+    row.insertBefore(b, row.firstChild);
+  }
+
+  // Import JSON button (lossless restore/merge from your Export JSON file)
+  if(!document.getElementById('importJsonBtn')){
+    const btn = document.createElement('button');
+    btn.id='importJsonBtn'; btn.className='btn'; btn.textContent='Import JSON';
+    const file = document.createElement('input');
+    file.type='file'; file.accept='.json,application/json'; file.style.display='none';
+    hist.appendChild(file);
+    btn.addEventListener('click', ()=> file.click());
+
+    file.addEventListener('change', (e)=>{
+      const f = e.target.files?.[0]; if(!f) return;
+      const key = (typeof makeBackup==='function') ? makeBackup() : null; // always back up first
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const data = JSON.parse(reader.result||'{}');
+          if(!data || typeof data!=='object') throw new Error('Invalid JSON');
+          const merge = confirm('Import JSON:\nOK = MERGE (safe)\nCancel = REPLACE (uses backup)');
+          const incNew = Array.isArray(data.income)? data.income : [];
+          const expNew = Array.isArray(data.expenses)? data.expenses : [];
+          const budNew = (data.budgets && typeof data.budgets==='object') ? data.budgets : {};
+
+          if(merge){
+            income = [...incNew, ...income];
+            expenses = [...expNew, ...expenses];
+            budgets = {...budgets, ...budNew};
+          }else{
+            income = incNew; expenses = expNew; budgets = budNew;
+          }
+
+          localStorage.setItem('bb_income', JSON.stringify(income));
+          localStorage.setItem('bb_expenses', JSON.stringify(expenses));
+          localStorage.setItem('bb_budgets', JSON.stringify(budgets));
+
+          // Re-render
+          if (typeof renderDashboard==='function') renderDashboard();
+          if (typeof renderIncome==='function')    renderIncome();
+          if (typeof renderExpenses==='function')  renderExpenses();
+          if (typeof renderHistory==='function')   renderHistory();
+
+          alert('JSON import complete' + (key ? ' (backup created)' : ''));
+        }catch(err){
+          alert('JSON import failed: ' + (err?.message||err));
+        }finally{
+          file.value = '';
+        }
+      };
+      reader.readAsText(f);
+    });
+
+    const csvBtn = document.getElementById('importBtn');
+    if(csvBtn) row.insertBefore(btn, csvBtn.nextSibling);
+    else row.insertBefore(btn, row.firstChild);
+  }
+})();
