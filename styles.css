@@ -107,3 +107,5 @@ html, body { height: -webkit-fill-available; overscroll-behavior-y: contain; }
 .value.pos{ color: var(--accent); }
 .value.neg{ color: var(--danger); }
 .bar.over .barFill{ background: var(--danger); }
+/* make import/restore buttons sit nicely */
+#importBtn { order: -1; } /* appears left-most in the row */
