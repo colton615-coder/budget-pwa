@@ -172,5 +172,11 @@
     clamp();
   })();
 </script>
+<script>
+  // PATCH: purge any previous scroll position & ensure vertical-only scroll feel
+  addEventListener('pageshow', () => scrollTo(0, 0), { once: true });
+  document.documentElement.style.overflowX = 'hidden';
+  document.body.style.overflowX = 'hidden';
+</script>
 </body>
 </html>
