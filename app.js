@@ -30,7 +30,94 @@ function monthlyize(amount, cadence){
     default: return 0;
   }
 }
+// === PATCH v2.4: normalize categories, net color, over-budget bars, quick amounts, tab scroll reset ===
 
+// Title-case helper to keep categories consistent
+function titleCase(s){ return String(s||'').toLowerCase().replace(/\b\w/g, c=>c.toUpperCase()); }
+
+// Normalize category BEFORE the original handler runs (capture phase)
+(function normalizeCatInputs(){
+  const ef = document.getElementById('expenseForm');
+  if(ef){
+    ef.addEventListener('submit', ()=> {
+      const el = document.getElementById('expCategory');
+      el.value = titleCase(el.value || 'Uncategorized');
+    }, true); // run before existing submit listener
+  }
+})();
+
+// Ensure budgets use normalized category names too
+if (typeof setBudget === 'function'){
+  const __setBudget = setBudget;
+  setBudget = function(cat, amount){ __setBudget(titleCase(cat||'Uncategorized'), amount); };
+}
+
+// Color the NET value (green if >=0, red if <0) after dashboard renders
+const __renderDashboard2 = renderDashboard;
+renderDashboard = function(){
+  __renderDashboard2();
+  const el = document.getElementById('monthlyNet');
+  if(el){
+    const num = parseFloat((el.textContent||'').replace(/[^-\d.]/g,''));
+    el.classList.remove('pos','neg');
+    if(!isNaN(num)) el.classList.add(num >= 0 ? 'pos' : 'neg');
+  }
+};
+
+// Rebuild Budgets renderer to mark overspends red and keep editing
+if (typeof renderBudgets === 'function'){
+  renderBudgets = function(){
+    ensureBudgetUI();
+    const data = monthlySpendByCategory();
+    const ul = document.getElementById('budgetProgress');
+    ul.innerHTML = '';
+    const cats = Object.keys({...data, ...budgets}).sort();
+    if(!cats.length){ ul.innerHTML = '<li class="item"><span class="meta">No budgets yet. Tap "Set budget".</span></li>'; return; }
+    cats.forEach(cat=>{
+      const spent = data[cat]||0, cap = budgets[cat]||0;
+      const pct = cap ? Math.min(100, Math.round(spent*100/cap)) : 0;
+      const over = cap && spent > cap;
+      const li = document.createElement('li'); li.className='item';
+      li.innerHTML = `<div class="meta">
+        <strong>${cat}</strong>
+        <span class="sub">${fmt(spent)}${cap?` / ${fmt(cap)}`:''} • ${pct}%${over?' (over)':''}</span>
+        <div class="bar${over?' over':''}"><div class="barFill" style="width:${Math.min(100, (spent/cap)*100 || 0)}%;"></div></div>
+      </div>
+      <div class="row"><button class="btn small" data-bcat="${cat}">Edit</button></div>`;
+      li.querySelector('[data-bcat]').addEventListener('click', ()=>{
+        const amt = prompt(`Monthly budget for "${cat}" (USD):`, budgets[cat] ?? '');
+        if(amt===null) return;
+        setBudget(cat, amt);
+      });
+      ul.appendChild(li);
+    });
+  };
+}
+
+// Quick-amount buttons (both forms) for faster entry
+(function quickAmounts(){
+  const add = (formId, inputId)=>{
+    const f = document.getElementById(formId);
+    const input = document.getElementById(inputId);
+    if(!f || !input) return;
+    const row = document.createElement('div');
+    row.className = 'row';
+    ['25','50','100','250','500'].forEach(v=>{
+      const b = document.createElement('button');
+      b.type='button'; b.className='btn small'; b.textContent='$'+v;
+      b.addEventListener('click', ()=>{ input.value = v; input.dispatchEvent(new Event('input',{bubbles:true})); });
+      row.appendChild(b);
+    });
+    f.insertBefore(row, f.querySelector('.row')); // above Save/Clear
+  };
+  add('expenseForm','expAmount');
+  add('incomeForm','incAmount');
+})();
+
+// Reset scroll to top when switching tabs (prevents "miles of scroll" feeling)
+(function resetOnTabChange(){
+  $$('.tab').forEach(btn=>btn.addEventListener('click', ()=>{ window.scrollTo({top:0, behavior:'instant'}); }, {passive:true}));
+})();
 function inThisMonth(dateStr){
   if(!dateStr) return false;
   const d = new Date(dateStr);
