@@ -144,3 +144,9 @@ input[type="number"]{text-align:right}
 /* ---------- Animations & density ---------- */
 @keyframes fadeUp{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)}}
 :root.compact input,:root.compact select,:root.compact .btn{height:40px}
+#income-section .row { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+#income-section label { min-width:110px; font-weight:600; }
+#income-section input, #income-section select { flex:1; }
+.list-head { display:flex; justify-content:space-between; align-items:baseline; margin-top:10px; }
+.list li { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(0,0,0,0.08); }
+.badge { font-size:12px; opacity:0.8; }
