@@ -103,3 +103,7 @@ html, body { height: -webkit-fill-available; overscroll-behavior-y: contain; }
 .bar{ width:100%; height:8px; background:#0f0f12; border:1px solid var(--line);
       border-radius:999px; margin-top:6px; overflow:hidden }
 .barFill{ height:100%; background:var(--accent) }
+/* === PATCH v2.4 UI polish === */
+.value.pos{ color: var(--accent); }
+.value.neg{ color: var(--danger); }
+.bar.over .barFill{ background: var(--danger); }
