@@ -34,3 +34,8 @@ self.addEventListener('fetch', (e)=>{
     }).catch(()=>cached))
   );
 });
+// === PATCH: take control faster after an update ===
+self.addEventListener('install', ()=> self.skipWaiting());
+self.addEventListener('activate', (e)=> {
+  e.waitUntil(self.clients.claim());
+});
