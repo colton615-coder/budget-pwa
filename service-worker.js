@@ -39,3 +39,6 @@ self.addEventListener('install', ()=> self.skipWaiting());
 self.addEventListener('activate', (e)=> {
   e.waitUntil(self.clients.claim());
 });
+// Ensure the newest files take over fast (prevents "still old CSS" behavior)
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
