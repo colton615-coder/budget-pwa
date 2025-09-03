@@ -163,5 +163,14 @@
       installBtn.hidden = true;
     });
   </script>
+<script>
+  // === PATCH: belt-and-suspenders to kill accidental horizontal scroll ===
+  (function(){
+    const clamp = () => { document.documentElement.style.overflowX = 'hidden'; document.body.style.overflowX = 'hidden'; };
+    window.addEventListener('resize', clamp, { passive: true });
+    window.addEventListener('orientationchange', clamp, { passive: true });
+    clamp();
+  })();
+</script>
 </body>
 </html>
