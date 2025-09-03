@@ -106,7 +106,49 @@
           </table>
         </div>
       </section>
-    </section>
+    </section><section class="card" id="income-section">
+  <h2>Income</h2>
+  <form id="income-form">
+    <div class="row">
+      <label for="income-source">Source</label>
+      <input id="income-source" type="text" placeholder="Paycheck, Side gig" required>
+    </div>
+    <div class="row">
+      <label for="income-amount">Amount</label>
+      <input id="income-amount" type="number" inputmode="decimal" step="0.01" placeholder="e.g., 1500" required>
+    </div>
+    <div class="row">
+      <label for="income-frequency">Frequency</label>
+      <select id="income-frequency" required>
+        <option value="monthly">Monthly</option>
+        <option value="biweekly">Biweekly (26/yr)</option>
+        <option value="weekly">Weekly (52/yr)</option>
+        <option value="annual">Annual</option>
+        <option value="oneoff">One-off (this month)</option>
+      </select>
+    </div>
+    <button type="submit">Add Income</button>
+  </form>
+
+  <div class="list-head">
+    <strong>Current Income</strong>
+    <small>(normalized to monthly)</small>
+  </div>
+  <ul id="income-list" class="list"></ul>
+
+  <div class="totals">
+    <div><span>Monthly Income</span><strong id="income-monthly">$0.00</strong></div>
+  </div>
+</section>
+
+<!-- Add these extra summary lines to your existing Summary/Dashboard card -->
+<div class="totals">
+  <div><span>Total Monthly Income</span><strong id="sum-income">$0.00</strong></div>
+  <div><span>Total Monthly Expenses</span><strong id="sum-expenses">$0.00</strong></div>
+  <div><span>Net (Income − Expenses)</span><strong id="sum-net">$0.00</strong></div>
+  <div><span>Savings Rate</span><strong id="sum-sr">0%</strong></div>
+  <div><span>Projected Month-End</span><strong id="sum-proj">$0.00</strong></div>
+</div>
 
     <!-- GOALS -->
     <section id="panel-goals" class="panel" role="tabpanel" aria-labelledby="tab-goals">
