@@ -260,3 +260,29 @@ if('serviceWorker' in navigator){
     navigator.serviceWorker.register('./service-worker.js');
   });
 }
+// === PATCH v2.3: Inline Edit + Category Budgets (append-only) ===
+keys.budgets = 'bb_budgets';
+let budgets = load(keys.budgets, {}); // { "Housing": 1200, ... }
+function setBudget(category, amount){ budgets[category]=Number(amount)||0; save(keys.budgets, budgets); renderBudgets(); }
+
+// Monthly spend per category (recurring + this month's one-offs)
+function monthlySpendByCategory(){
+  const sum = {};
+  expenses.forEach(x => sum[x.category]=(sum[x.category]||0)+monthlyize(x.amount,x.cadence));
+  expenses.filter(x=>x.cadence==='oneoff' && inThisMonth(x.date))
+          .forEach(x => sum[x.category]=(sum[x.category]||0)+x.amount);
+  return sum;
+}
+
+// Inject "Budgets" block into Dashboard (no HTML edits needed)
+function ensureBudgetUI(){
+  const dash = document.getElementById('view-dashboard');
+  if(!document.getElementById('budgetBlock')){
+    const block = document.createElement('div');
+    block.className='list-block';
+    block.id='budgetBlock';
+    block.innerHTML = `
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h2 style="margin:0">Budgets</h2>
+        <button id="addBudgetBtn" class="btn small">Set budget</button>
+      </
