@@ -78,3 +78,21 @@ h1{line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis
 
 /* Charts and any wide elements cannot widen the page */
 canvas, img, video{max-width:100vw}
+/* === PATCH v2.2: kill phantom bottom space on iOS === */
+
+/* Treat visual viewport correctly and block rubber-band space from compounding */
+html, body { height: -webkit-fill-available; overscroll-behavior-y: contain; }
+
+/* Replace big padding with a fixed spacer to reserve room for the tabbar */
+.app { padding-bottom: 12px !important; } /* small, constant */
+.app::after {
+  content: "";
+  display: block;
+  height: calc(var(--tabbar-h, 64px) + env(safe-area-inset-bottom)); /* exact reserve */
+}
+
+/* Make tabbar height explicit so the spacer math is stable */
+.tabbar { height: var(--tabbar-h, 64px); }
+
+/* Belt-and-suspenders: if Chart.js ever goes wild, cap the canvas height */
+#budgetChart { height: 220px !important; max-height: 280px; }
