@@ -373,3 +373,185 @@ function ensureBudgetUI(){
         <h2 style="margin:0">Budgets</h2>
         <button id="addBudgetBtn" class="btn small">Set budget</button>
       </
+// === PATCH v2.5: CSV Import (merge by default) + automatic backup + restore ===
+
+// Fallbacks in case earlier patches weren't added:
+keys.budgets = keys.budgets || 'bb_budgets';
+let budgets = (typeof budgets !== 'undefined') ? budgets : load(keys.budgets, {});
+function titleCase(s){ return String(s||'').toLowerCase().replace(/\b\w/g, c=>c.toUpperCase()); }
+
+// ---- Backup / Restore ----
+function makeBackup(){
+  try{
+    const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+    const payload = { stamp, income, expenses, budgets };
+    const key = `bb_backup_${stamp}`;
+    localStorage.setItem(key, JSON.stringify(payload));
+    localStorage.setItem('bb_backup_latest', key);
+    return key;
+  }catch(e){ console.warn('Backup failed', e); return null; }
+}
+function restoreLatestBackup(){
+  const key = localStorage.getItem('bb_backup_latest');
+  if(!key){ alert('No backup found'); return; }
+  try{
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
+    if(!data || !Array.isArray(data.expenses) || !Array.isArray(data.income)){
+      alert('Backup corrupted/unusable'); return;
+    }
+    expenses = data.expenses; income = data.income; budgets = data.budgets || {};
+    save(keys.expenses, expenses); save(keys.income, income); save(keys.budgets, budgets);
+    renderDashboard(); renderExpenses(); renderIncome(); renderHistory();
+    alert('Restored from backup: ' + key);
+  }catch(e){ alert('Restore failed: ' + e.message); }
+}
+
+// ---- CSV parsing ----
+function parseCSV(text){
+  // Simple CSV parser with quoted-field support
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(Boolean);
+  if(!lines.length) return { rows: [], headers: [] };
+
+  const parseLine = (line)=>{
+    const out = []; let cur = ''; let q = false;
+    for(let i=0;i<line.length;i++){
+      const ch = line[i], nx = line[i+1];
+      if(ch === '"' ){ 
+        if(q && nx === '"'){ cur += '"'; i++; }
+        else q = !q;
+      } else if(ch === ',' && !q){ out.push(cur); cur=''; }
+      else { cur += ch; }
+    }
+    out.push(cur); return out;
+  };
+
+  const headers = parseLine(lines[0]).map(h => h.trim().toLowerCase());
+  const rows = lines.slice(1).map(l => {
+    const cells = parseLine(l).map(c => c.trim());
+    const obj = {};
+    headers.forEach((h, i)=> obj[h] = (cells[i] ?? ''));
+    return obj;
+  });
+  return { rows, headers };
+}
+
+// Map row → normalized item(s)
+function normalizeRow(row){
+  // accepted headers: type, name, amount, category, cadence, date
+  const name = row.name || row.title || '';
+  let amount = parseFloat(String(row.amount||row.amt||'').replace(/[^-\d.]/g,'')) || 0;
+  const rawType = (row.type || '').toLowerCase();
+  const cadence = (row.cadence || row.freq || 'monthly').toLowerCase();
+  const category = titleCase(row.category || 'Uncategorized');
+  const date = row.date ? String(row.date).slice(0,10) : '';
+
+  let type = rawType;
+  if(!type){
+    // Infer by sign if type missing: + = income, - = expense
+    type = amount >= 0 ? 'income' : 'expense';
+  }
+  // Store amounts positive; type decides the list
+  amount = Math.abs(amount);
+  return { type, item: { id: uid(), name: name || '(Unnamed)', amount, category, cadence, date: date || null, createdAt: Date.now() } };
+}
+
+// Dedup signature (skip exact repeats)
+function sig(x, type){ 
+  const d = x.date || '';
+  return [type, x.name.toLowerCase(), x.amount.toFixed(2), (x.category||'').toLowerCase(), x.cadence, d].join('|');
+}
+
+// ---- Import UI injection (History view) ----
+(function installImportUI(){
+  const hist = document.getElementById('view-history');
+  const row = hist?.querySelector('.row');
+  if(!row) return;
+
+  // Import button
+  const importBtn = document.createElement('button');
+  importBtn.id = 'importBtn';
+  importBtn.className = 'btn';
+  importBtn.textContent = 'Import CSV';
+  row.insertBefore(importBtn, row.firstChild);
+
+  // Restore button
+  const restoreBtn = document.createElement('button');
+  restoreBtn.id = 'restoreBtn';
+  restoreBtn.className = 'btn';
+  restoreBtn.textContent = 'Restore Backup';
+  row.appendChild(restoreBtn);
+
+  // Hidden file input
+  const fi = document.createElement('input');
+  fi.type = 'file';
+  fi.accept = '.csv,text/csv';
+  fi.style.display = 'none';
+  hist.appendChild(fi);
+
+  importBtn.addEventListener('click', ()=> fi.click());
+  restoreBtn.addEventListener('click', restoreLatestBackup);
+
+  fi.addEventListener('change', (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+
+    // Always back up before import
+    const key = makeBackup();
+    if(key) console.log('Backup saved as', key);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const { rows } = parseCSV(String(reader.result||''));
+        if(!rows.length){ alert('CSV appears empty'); return; }
+
+        // Default mode = MERGE (safe). Optionally allow replace.
+        const replace = confirm('Import mode:\nOK = MERGE (recommended)\nCancel = REPLACE (destructive, but backed up)');
+        const existingSigs = new Set([
+          ...income.map(x => sig(x,'income')),
+          ...expenses.map(x => sig(x,'expense'))
+        ]);
+
+        const importedIncome = [];
+        const importedExpenses = [];
+        let skipped = 0;
+
+        rows.forEach(r=>{
+          const { type, item } = normalizeRow(r);
+          if(type === 'income'){
+            if(existingSigs.has(sig(item,'income'))) { skipped++; return; }
+            importedIncome.push(item);
+          }else{
+            if(existingSigs.has(sig(item,'expense'))) { skipped++; return; }
+            importedExpenses.push(item);
+          }
+        });
+
+        if(replace){
+          income = importedIncome;
+          expenses = importedExpenses;
+        }else{
+          income = [...importedIncome, ...income];
+          expenses = [...importedExpenses, ...expenses];
+        }
+
+        save(keys.income, income);
+        save(keys.expenses, expenses);
+        try{ save(keys.budgets, budgets); }catch(_){} // keep budgets safe
+
+        renderDashboard(); renderIncome(); renderExpenses(); renderHistory();
+        alert(
+          `Import complete:\n`+
+          `+${importedIncome.length} income, +${importedExpenses.length} expenses\n`+
+          `${skipped ? `(${skipped} duplicates skipped)` : ''}\n`+
+          (replace ? 'Mode: REPLACE\n(Backup saved; use Restore if needed)' : 'Mode: MERGE (safe)')
+        );
+      }catch(err){
+        alert('Import failed: ' + (err?.message||err));
+      }finally{
+        fi.value = ''; // reset
+      }
+    };
+    reader.readAsText(file);
+  });
+})();
