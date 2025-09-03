@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Budget Buddy — v2</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script type="module" src="app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>Budget Buddy</h1>
+    <button id="installBtn" class="btn small" hidden>Install</button>
+  </header>
+
+  <main id="app" class="app">
+    <!-- Dashboard -->
+    <section id="view-dashboard" class="view active" aria-labelledby="tab-dashboard" role="region">
+      <div class="cards">
+        <div class="card">
+          <div class="label">Monthly Income</div>
+          <div id="monthlyIncome" class="value">$0</div>
+        </div>
+        <div class="card">
+          <div class="label">Monthly Expenses</div>
+          <div id="monthlyExpenses" class="value">$0</div>
+        </div>
+        <div class="card">
+          <div class="label">Net (Income - Expenses)</div>
+          <div id="monthlyNet" class="value">$0</div>
+        </div>
+      </div>
+
+      <canvas id="budgetChart" height="220" aria-label="Budget breakdown chart"></canvas>
+
+      <div class="list-block">
+        <h2>Upcoming (next 14 days)</h2>
+        <ul id="upcomingList" class="list"></ul>
+      </div>
+    </section>
+
+    <!-- Add Expense -->
+    <section id="view-expense" class="view" aria-labelledby="tab-expense" role="region">
+      <h2>Add Expense</h2>
+      <form id="expenseForm" class="form">
+        <label>
+          Name
+          <input id="expName" required maxlength="64" placeholder="Rent, Groceries, Netflix">
+        </label>
+        <label>
+          Amount ($)
+          <input id="expAmount" type="number" inputmode="decimal" step="0.01" required>
+        </label>
+        <label>
+          Category
+          <input id="expCategory" maxlength="48" placeholder="Housing, Food, Subscriptions">
+        </label>
+        <label>
+          Cadence
+          <select id="expCadence">
+            <option value="oneoff" selected>One‑off</option>
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Bi‑weekly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </label>
+        <label>
+          Due / Date
+          <input id="expDate" type="date">
+        </label>
+        <div class="row">
+          <button class="btn primary" type="submit">Save Expense</button>
+          <button class="btn" type="reset">Clear</button>
+        </div>
+      </form>
+
+      <div class="list-block">
+        <h3>Expenses</h3>
+        <ul id="expenseList" class="list"></ul>
+      </div>
+    </section>
+
+    <!-- Add Income -->
+    <section id="view-income" class="view" aria-labelledby="tab-income" role="region">
+      <h2>Add Income</h2>
+      <form id="incomeForm" class="form">
+        <label>
+          Name
+          <input id="incName" required maxlength="64" placeholder="Paycheck, Side gig, Refund">
+        </label>
+        <label>
+          Amount ($)
+          <input id="incAmount" type="number" inputmode="decimal" step="0.01" required>
+        </label>
+        <label>
+          Cadence
+          <select id="incCadence">
+            <option value="monthly" selected>Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Bi‑weekly</option>
+            <option value="yearly">Yearly</option>
+            <option value="oneoff">One‑off</option>
+          </select>
+        </label>
+        <label>
+          First / Next Pay Date
+          <input id="incDate" type="date">
+        </label>
+        <div class="row">
+          <button class="btn primary" type="submit">Save Income</button>
+          <button class="btn" type="reset">Clear</button>
+        </div>
+      </form>
+
+      <div class="list-block">
+        <h3>Income</h3>
+        <ul id="incomeList" class="list"></ul>
+      </div>
+    </section>
+
+    <!-- History / Reports -->
+    <section id="view-history" class="view" aria-labelledby="tab-history" role="region">
+      <h2>History & Reports</h2>
+      <div class="list-block">
+        <h3>This Month</h3>
+        <ul id="historyList" class="list"></ul>
+      </div>
+      <div class="row">
+        <button id="exportBtn" class="btn">Export JSON</button>
+        <button id="wipeBtn" class="btn danger">Wipe Data</button>
+      </div>
+      <p class="muted small">Data is private and saved on‑device (localStorage). Works offline.</p>
+    </section>
+  </main>
+
+  <nav class="tabbar" role="tablist">
+    <button id="tab-dashboard" class="tab active" data-target="view-dashboard" role="tab" aria-controls="view-dashboard">Dashboard</button>
+    <button id="tab-expense" class="tab" data-target="view-expense" role="tab" aria-controls="view-expense">Expenses</button>
+    <button id="tab-income" class="tab" data-target="view-income" role="tab" aria-controls="view-income">Income</button>
+    <button id="tab-history" class="tab" data-target="view-history" role="tab" aria-controls="view-history">History</button>
+  </nav>
+
+  <script>
+    // PWA install prompt
+    let deferredPrompt;
+    const installBtn = document.getElementById('installBtn');
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.hidden = false;
+    });
+    installBtn?.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installBtn.hidden = true;
+    });
+  </script>
+</body>
+</html>
