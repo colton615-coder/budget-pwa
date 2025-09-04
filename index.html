@@ -35,7 +35,30 @@
           <div id="monthlyNet" class="value">$0</div>
         </div>
       </div>
+<!-- DASHBOARD METRICS -->
+<section id="dashboard" class="card-grid">
+  <div class="card">
+    <div class="label">Income (MTD)</div>
+    <div id="monthlyIncome" class="value">$0.00</div>
+  </div>
 
+  <div class="card">
+    <div class="label" data-expense-label>Spent this month (MTD)</div>
+    <div id="monthlyExpenses" class="value">$0.00</div>
+    <small id="recurringBillsNote" class="muted"></small>
+  </div>
+
+  <div class="card">
+    <div class="label">Net (Income − Spend)</div>
+    <div id="netAmount" class="value">$0.00</div>
+  </div>
+</section>
+
+<!-- VIEW TOGGLE + CHART -->
+<div id="dashboardControls"></div>
+<div class="chart-wrap">
+  <canvas id="summaryChart" height="220"></canvas>
+</div>
       <canvas id="budgetChart" height="220" aria-label="Budget breakdown chart"></canvas>
 
       <div class="list-block">
@@ -43,7 +66,12 @@
         <ul id="upcomingList" class="list"></ul>
       </div>
     </section>
-
+<input id="expenseName">
+<input id="expenseCategory">
+<input id="expenseAmount" type="number" step="0.01">
+<select id="expenseFrequency"> <!-- values: oneoff, monthly, ... --></select>
+<input id="expenseDate" type="date"> <!-- optional -->
+<button id="saveExpenseBtn">Save Expense</button>
     <!-- Add Expense -->
     <section id="view-expense" class="view" aria-labelledby="tab-expense" role="region">
       <h2>Add Expense</h2>
@@ -179,4 +207,6 @@
   document.body.style.overflowX = 'hidden';
 </script>
 </body>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="./app.js"></script>
 </html>
