@@ -636,5 +636,27 @@
 
     // initial state: show overview only
     showSection('summary');
+     function showSection(selector){
+      // Hide all top-level sections
+      $$('main > section').forEach(sec => sec.hidden = true);
+
+      // Allow both: class names (e.g., 'summary', 'budgets') and element IDs (e.g., 'txTitle')
+      let sec = document.querySelector(`section.${selector}`) || document.getElementById(selector);
+
+      // If we matched a child (like an H2), reveal its parent section
+      if (sec && sec.tagName !== 'SECTION') sec = sec.closest('section');
+
+      // Fallback to Overview if nothing found
+      (sec || document.querySelector('section.summary')).hidden = false;
+    }
+
+    // Update the Transactions tab mapping to the section's class:
+    byId('tabTx')?.addEventListener('click', () => {
+      bar.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      byId('tabTx').classList.add('active');
+      showSection('card'); // show the first 'card' by default, then scroll to txTitle
+      const txSec = byId('txTitle')?.closest('section');
+      if (txSec) { $$('main > section').forEach(sec => sec.hidden = true); txSec.hidden = false; }
+    });
   });
 })();
