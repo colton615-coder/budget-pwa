@@ -10,10 +10,34 @@
   <link rel="stylesheet" href="./app.css" />
 </head>
 <body>
+  <!-- PATCH v1.2 — START MAIN -->
+  <main class="main-scroll">
+    <!-- PATCH v1.2 — DASHBOARD METRICS (PASTE/REPLACE HERE) -->
+    <section id="dashboard" class="card-grid">
+      <div class="card">
+        <div class="label">Income (MTD)</div>
+        <div id="monthlyIncome" class="value">$0.00</div>
+      </div>
+
+      <div class="card">
+        <div class="label" data-expense-label>Spent this month (MTD)</div>
+        <div id="monthlyExpenses" class="value">$0.00</div>
+        <small id="recurringBillsNote" class="muted"></small>
+      </div>
+
+      <div class="card">
+        <div class="label">Net (Income − Spend)</div>
+        <div id="netAmount" class="value">$0.00</div>
+      </div>
+    </section>
   <header class="app-header">
     <h1>Budget Buddy</h1>
   </header>
-
+    <!-- PATCH v1.2 — VIEW TOGGLE + CHART (PASTE HERE) -->
+    <div id="dashboardControls"></div>
+    <div class="chart-wrap">
+      <canvas id="summaryChart" height="220"></canvas>
+    </div>
   <main id="pages" class="pages">
     <!-- DASHBOARD PAGE -->
     <section id="page-dashboard" class="page active">
