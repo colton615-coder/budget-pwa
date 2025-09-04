@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Budget Buddy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1115" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="./app.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Budget Buddy</h1>
+  </header>
+
+  <main id="pages" class="pages">
+    <!-- DASHBOARD PAGE -->
+    <section id="page-dashboard" class="page active">
+      <div class="card metric">
+        <div class="metric-title">Monthly Income</div>
+        <div id="monthlyIncome" class="metric-value">$0.00</div>
+      </div>
+      <div class="card metric">
+        <div class="metric-title">Monthly Expenses</div>
+        <div id="monthlyExpenses" class="metric-value">$0.00</div>
+      </div>
+      <div class="card metric">
+        <div class="metric-title">Net (Income - Expenses)</div>
+        <div id="netAmount" class="metric-value positive">$0.00</div>
+      </div>
+
+      <div class="card chart-card">
+        <canvas id="summaryChart" height="220"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Upcoming (next 14 days)</div>
+        <div id="upcomingList" class="muted">Nothing due in the next 14 days</div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Budgets</div>
+        <button id="setBudgetBtn" class="btn small right-btn">Set budget</button>
+        <div id="budgetsList" class="muted" style="margin-top:10px;">—</div>
+      </div>
+    </section>
+
+    <!-- EXPENSES PAGE -->
+    <section id="page-expenses" class="page">
+      <div class="card">
+        <div class="section-title">Name</div>
+        <input id="expenseName" class="input" placeholder="Rent, Groceries, Netflix" />
+
+        <div class="section-title">Amount ($)</div>
+        <input id="expenseAmount" class="input" type="number" step="0.01" inputmode="decimal" placeholder="0.00" />
+
+        <div class="section-title">Category</div>
+        <input id="expenseCategory" class="input" placeholder="Housing, Food, Subscriptions" />
+
+        <div class="section-title">Cadence</div>
+        <select id="expenseFrequency" class="input">
+          <option value="oneoff" selected>oneoff</option>
+          <option value="monthly">monthly</option>
+        </select>
+
+        <div class="section-title">Due / Date</div>
+        <input id="expenseDate" class="input" type="date" />
+
+        <div class="quick-amounts">
+          <button class="chip" data-amount="25">$25</button>
+          <button class="chip" data-amount="50">$50</button>
+          <button class="chip" data-amount="100">$100</button>
+          <button class="chip" data-amount="250">$250</button>
+          <button class="chip" data-amount="500">$500</button>
+        </div>
+
+        <div class="row">
+          <button id="saveExpenseBtn" class="btn primary">Save Expense</button>
+          <button id="clearExpenseBtn" class="btn">Clear</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Expenses</div>
+        <div id="expensesList" class="list"></div>
+      </div>
+    </section>
+
+    <!-- INCOME PAGE (placeholder for parity with original tabs) -->
+    <section id="page-income" class="page">
+      <div class="card">
+        <div class="section-title">Income (quick add)</div>
+        <div class="row">
+          <input id="incomeName" class="input" placeholder="Paycheck" />
+          <input id="incomeAmount" class="input" type="number" step="0.01" inputmode="decimal" placeholder="0.00" />
+          <input id="incomeDate" class="input" type="date" />
+          <button id="saveIncomeBtn" class="btn primary">Save Income</button>
+        </div>
+        <div class="list" id="incomeList"></div>
+      </div>
+    </section>
+
+    <!-- HISTORY PAGE (simple export/reset) -->
+    <section id="page-history" class="page">
+      <div class="card">
+        <div class="section-title">Data</div>
+        <div class="row">
+          <button id="exportBtn" class="btn">Export JSON</button>
+          <button id="clearAllBtn" class="btn danger">Clear ALL</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="expenses">Expenses</button>
+    <button class="tab" data-tab="income">Income</button>
+    <button class="tab" data-tab="history">History</button>
+  </nav>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
