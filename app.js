@@ -556,3 +556,201 @@ ready(() => {
   // 5) Rekick dashboard once everything is attached
   try { recomputeDashboard?.(document.getElementById('chartView')?.value || 'mtd'); } catch {}
 });
+/* ===== v1.4.2 — Restore classic text UI + reliable clicks (append) ===== */
+(function () {
+  if (window.__BB_CLASSIC_TEXT_PATCH__) return;
+  window.__BB_CLASSIC_TEXT_PATCH__ = true;
+
+  const $  = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const n  = (v, d=0) => Number(v ?? d) || d;
+
+  // Prevent silent form reloads that "kill" buttons
+  function hardenForms() {
+    document.querySelectorAll('form').forEach(f => {
+      if (!f.dataset.nosubmit) {
+        f.addEventListener('submit', e => e.preventDefault());
+        f.dataset.nosubmit = '1';
+      }
+    });
+  }
+
+  /* --------- WRAPPERS (use existing app functions if present) --------- */
+  function saveExpenseSafe() {
+    if (typeof saveExpense === 'function') return saveExpense();
+    if (typeof onSaveExpenseClick === 'function') return onSaveExpenseClick();
+
+    // Fallback minimal save (IDs from your UI)
+    const name = $('#expenseName')?.value || '';
+    const amount = n($('#expenseAmount')?.value);
+    if (!name || !amount) { alert('Enter a name and amount.'); return; }
+    const category  = $('#expenseCategory')?.value || '';
+    const frequency = $('#expenseFrequency')?.value || 'oneoff';
+    const dval      = $('#expenseDate')?.value;
+    const dateISO   = dval ? new Date(dval).toISOString() : null;
+
+    const key = 'expenses';
+    const items = JSON.parse(localStorage.getItem(key) || '[]');
+    items.push({
+      id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now() + Math.random()),
+      name, category, amount, frequency, date: dateISO, createdAt: new Date().toISOString()
+    });
+    localStorage.setItem(key, JSON.stringify(items));
+
+    try { renderExpenses?.(); } catch {}
+    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
+
+    ['expenseName','expenseCategory','expenseAmount','expenseDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
+    const f = $('#expenseFrequency'); if (f) f.value = 'oneoff';
+  }
+
+  function saveIncomeSafe() {
+    if (typeof saveIncome === 'function') return saveIncome();
+    const key = 'incomes';
+    const items = JSON.parse(localStorage.getItem(key) || '[]');
+    const name = $('#incomeName')?.value || 'Income';
+    const amount = n($('#incomeAmount')?.value);
+    const dval = $('#incomeDate')?.value;
+    const dateISO = dval ? new Date(dval).toISOString() : new Date().toISOString();
+    if (!amount) { alert('Enter income amount'); return; }
+    items.push({ id:String(Date.now()+Math.random()), name, amount, date:dateISO, createdAt:dateISO });
+    localStorage.setItem(key, JSON.stringify(items));
+    try { renderIncome?.(); } catch {}
+    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
+    ['incomeName','incomeAmount','incomeDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
+  }
+
+  function deleteExpenseSafe(id) {
+    if (typeof deleteExpense === 'function') return deleteExpense(id);
+    const key = 'expenses';
+    let items = JSON.parse(localStorage.getItem(key) || '[]');
+    items = items.filter(e => String(e.id) !== String(id));
+    localStorage.setItem(key, JSON.stringify(items));
+    try { renderExpenses?.(); } catch {}
+    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
+  }
+
+  function exportJSONSafe() {
+    const blob = new Blob([JSON.stringify({
+      expenses: JSON.parse(localStorage.getItem('expenses') || '[]'),
+      incomes : JSON.parse(localStorage.getItem('incomes')  || '[]')
+    }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'budget-buddy-data.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  function clearAllSafe() {
+    if (!confirm('Delete ALL expenses and incomes?')) return;
+    localStorage.setItem('expenses','[]'); localStorage.setItem('incomes','[]');
+    try { renderExpenses?.(); renderIncome?.(); } catch {}
+    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
+  }
+
+  /* --------- RESTORE THE CLASSIC TEXT UI (tabs, buttons, deletes) --------- */
+  function restoreClassicTextUI() {
+    // Tabs: text labels exactly like your screenshots
+    const labels = { dashboard: 'Dashboard', expenses: 'Expenses', income: 'Income', history: 'History' };
+    document.querySelectorAll('.tab[data-tab]').forEach(tab => {
+      const k = tab.dataset.tab; if (labels[k]) tab.textContent = labels[k];
+      tab.classList.remove('btn-emoji'); // in case previous patch added it
+    });
+
+    // Primary buttons text
+    const map = [
+      ['#saveExpenseBtn','Save Expense'],
+      ['#clearExpenseBtn','Clear'],
+      ['#saveIncomeBtn','Save Income'],
+      ['#exportBtn','Export JSON'],
+      ['#clearAllBtn','Clear All']
+    ];
+    map.forEach(([sel,txt]) => {
+      const el = $(sel); if (!el) return;
+      el.textContent = txt; el.classList.remove('btn-emoji'); // normalize size
+    });
+
+    // Delete buttons in expense rows → round “×”
+    function restyleDeletes(root=document) {
+      root.querySelectorAll('[data-del], .del').forEach(btn => {
+        const id = btn.getAttribute('data-del') || btn.dataset.id;
+        btn.textContent = '×';
+        btn.classList.add('del-circle');
+        btn.classList.remove('btn-emoji','btn-trash');
+        if (!btn.dataset.id && id) btn.dataset.id = id;
+        btn.dataset.action = 'delete-expense';
+      });
+    }
+    restyleDeletes();
+
+    // Re-apply delete styling when list re-renders
+    const list = $('#expensesList');
+    if (list && !list.__bbClassicObs) {
+      const mo = new MutationObserver(() => restyleDeletes(list));
+      mo.observe(list, { childList: true, subtree: true });
+      list.__bbClassicObs = mo;
+    }
+  }
+
+  /* --------- ONE DELEGATED CLICK HANDLER (never misses) --------- */
+  function attachDelegation() {
+    if (document.__bbClassicDelegation) return;
+    document.__bbClassicDelegation = true;
+
+    document.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-action], .tab, [data-del], .del, #saveExpenseBtn, #clearExpenseBtn, #saveIncomeBtn, #exportBtn, #clearAllBtn');
+      if (!t) return;
+
+      let action = t.dataset.action;
+      if (!action) {
+        if (t.matches('.tab')) action = 'switch-tab';
+        else if (t.matches('[data-del], .del')) action = 'delete-expense';
+        else if (t.id === 'saveExpenseBtn') action = 'save-expense';
+        else if (t.id === 'clearExpenseBtn') action = 'clear-expense';
+        else if (t.id === 'saveIncomeBtn') action = 'save-income';
+        else if (t.id === 'exportBtn') action = 'export-json';
+        else if (t.id === 'clearAllBtn') action = 'clear-all';
+      }
+
+      switch (action) {
+        case 'save-expense':  e.preventDefault(); saveExpenseSafe(); break;
+        case 'clear-expense': e.preventDefault(); ['expenseName','expenseCategory','expenseAmount','expenseDate'].forEach(id => { const el=$('#'+id); if (el) el.value=''; }); const f=$('#expenseFrequency'); if (f) f.value='oneoff'; break;
+        case 'save-income':   e.preventDefault(); saveIncomeSafe(); break;
+        case 'export-json':   e.preventDefault(); exportJSONSafe(); break;
+        case 'clear-all':     e.preventDefault(); clearAllSafe(); break;
+        case 'switch-tab':    e.preventDefault(); if (typeof showTab === 'function') showTab(t.dataset.tab); else {
+                                document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x===t));
+                                document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active', p.id === `page-${t.dataset.tab}`));
+                                window.scrollTo({ top: 0, behavior: 'instant' });
+                              } break;
+        case 'delete-expense':
+          e.preventDefault();
+          const id = t.getAttribute('data-del') || t.dataset.id || t.value;
+          if (id) deleteExpenseSafe(id);
+          break;
+        default: break;
+      }
+    }, { passive: false });
+  }
+
+  function kickTiles() {
+    // Make sure the dashboard shows MTD math
+    try { recomputeDashboard?.('mtd'); } catch {}
+    try { updateDashboard?.(); } catch {}
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // unlock scroll just in case
+    document.documentElement.style.overflow = 'auto';
+    document.body.style.overflow = 'auto';
+
+    hardenForms();
+    attachDelegation();
+    restoreClassicTextUI();
+    kickTiles();
+
+    // Run again after first render waves
+    setTimeout(restoreClassicTextUI, 200);
+    setTimeout(kickTiles, 250);
+    setTimeout(restoreClassicTextUI, 800);
+  });
+})();
