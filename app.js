@@ -1,6 +1,8 @@
-/* Ledgerly+ — compact mode, charts, settings, day-by-day
-   Storage: IndexedDB
-   No external libraries
+/* Ledgerly+ — full app.js
+   Features: IndexedDB storage, budgets, filters, export/import,
+             settings (theme/primary/currency/density), charts (trend, bars, donut),
+             day-by-day view, bottom tab bar navigation.
+   No external libraries.
 */
 (() => {
   const $ = sel => document.querySelector(sel);
@@ -12,11 +14,12 @@
     currencyFmt: null,
     installPrompt: null,
     db: null,
-    budgets: [], // {id, category, limit}
-    transactions: [], // {id, type, date, category, amount, note}
+    budgets: [],       // {id, category, limit}
+    transactions: [],  // {id, type, date, category, amount, note}
     settings: { theme:'auto', primary:'#0ea5e9', density:'', currency:'' }
   };
 
+  /* ---------- Currency ---------- */
   function setCurrency(code){
     try{
       state.currencyCode = (code || state.settings.currency || guessCurrency()).toUpperCase();
@@ -27,7 +30,6 @@
     }
   }
   function fmtMoney(n){ return state.currencyFmt.format(+n || 0); }
-
   function guessCurrency(){
     try{
       const region = Intl.DateTimeFormat().resolvedOptions().locale.split('-')[1] || 'US';
@@ -69,8 +71,9 @@
 
   /* ---------- Boot ---------- */
   document.addEventListener('DOMContentLoaded', async () => {
-    byId('year').textContent = new Date().getFullYear();
-    $('#monthLabel').textContent = monthName(new Date()) + ' totals';
+    byId('year') && (byId('year').textContent = new Date().getFullYear());
+    $('#monthLabel') && ($('#monthLabel').textContent = monthName(new Date()) + ' totals');
+
     await initDB();
     await loadAll();
     await loadSettings();
@@ -78,6 +81,7 @@
     setCurrency();
     renderAll();
     wireUI();
+    setupTabs();         // bottom tab bar + section switching
     registerSW();
     setupInstall();
     maybeShowIosTip();
@@ -114,37 +118,37 @@
     const budgetDialog = byId('budgetDialog');
     const settingsDialog = byId('settingsDialog');
 
-    byId('addBtn').addEventListener('click', () => openTxDialog());
-    byId('closeTxDialog').addEventListener('click', () => txDialog.close());
-    byId('cancelTx').addEventListener('click', () => txDialog.close());
+    byId('addBtn')?.addEventListener('click', () => openTxDialog());
+    byId('closeTxDialog')?.addEventListener('click', () => txDialog?.close());
+    byId('cancelTx')?.addEventListener('click', () => txDialog?.close());
 
-    byId('addBudgetBtn').addEventListener('click', () => openBudgetDialog());
-    byId('closeBudgetDialog').addEventListener('click', () => budgetDialog.close());
-    byId('cancelBudget').addEventListener('click', () => budgetDialog.close());
+    byId('addBudgetBtn')?.addEventListener('click', () => openBudgetDialog());
+    byId('closeBudgetDialog')?.addEventListener('click', () => budgetDialog?.close());
+    byId('cancelBudget')?.addEventListener('click', () => budgetDialog?.close());
 
-    byId('settingsBtn').addEventListener('click', ()=> openSettings());
-    byId('closeSettings').addEventListener('click', ()=> settingsDialog.close());
-    byId('cancelSettings').addEventListener('click', ()=> settingsDialog.close());
-    byId('settingsForm').addEventListener('submit', onSaveSettings);
+    byId('settingsBtn')?.addEventListener('click', ()=> openSettings());
+    byId('closeSettings')?.addEventListener('click', ()=> settingsDialog?.close());
+    byId('cancelSettings')?.addEventListener('click', ()=> settingsDialog?.close());
+    byId('settingsForm')?.addEventListener('submit', onSaveSettings);
 
-    byId('txForm').addEventListener('submit', onSaveTx);
-    byId('budgetForm').addEventListener('submit', onSaveBudget);
+    byId('txForm')?.addEventListener('submit', onSaveTx);
+    byId('budgetForm')?.addEventListener('submit', onSaveBudget);
 
     // Filters
-    byId('filterForm').addEventListener('input', debounce(()=>{ renderTransactions(); drawExpenseBars(); }, 100));
-    byId('clearFilters').addEventListener('click', (e)=>{ e.preventDefault(); byId('filterForm').reset(); renderTransactions(); drawExpenseBars(); });
+    byId('filterForm')?.addEventListener('input', debounce(()=>{ renderTransactions(); drawExpenseBars(); }, 100));
+    byId('clearFilters')?.addEventListener('click', (e)=>{ e.preventDefault(); byId('filterForm').reset(); renderTransactions(); drawExpenseBars(); });
 
     // Export/Import
-    byId('exportBtn').addEventListener('click', onExport);
-    byId('importFile').addEventListener('change', onImport);
+    byId('exportBtn')?.addEventListener('click', onExport);
+    byId('importFile')?.addEventListener('change', onImport);
 
-    byId('closeIosTip').addEventListener('click', ()=> byId('iosTip').hidden = true);
+    byId('closeIosTip')?.addEventListener('click', ()=> byId('iosTip').hidden = true);
 
     $$('dialog').forEach(d => d.addEventListener('cancel', e => { e.preventDefault(); d.close(); }));
   }
 
   function openTxDialog(tx=null){
-    const d = byId('txDialog');
+    const d = byId('txDialog'); if(!d) return;
     byId('txDialogTitle').textContent = tx ? 'Edit transaction' : 'Add transaction';
     byId('txType').value = tx?.type || 'expense';
     byId('txDate').value = tx?.date || todayStr();
@@ -155,7 +159,7 @@
     d.showModal(); byId('txType').focus();
   }
   function openBudgetDialog(b=null){
-    const d = byId('budgetDialog');
+    const d = byId('budgetDialog'); if(!d) return;
     byId('budgetDialogTitle').textContent = b ? 'Edit budget' : 'Add budget';
     byId('budgetCategory').value = b?.category || '';
     byId('budgetLimit').value = b?.limit?.toFixed(2) || '';
@@ -163,11 +167,12 @@
     d.showModal(); byId('budgetCategory').focus();
   }
   function openSettings(){
+    const d = byId('settingsDialog'); if(!d) return;
     byId('setTheme').value = state.settings.theme || 'auto';
     byId('setPrimary').value = state.settings.primary || '#0ea5e9';
     byId('setCurrency').value = state.settings.currency || state.currencyCode || 'USD';
     byId('setDensity').value = state.settings.density || '';
-    byId('settingsDialog').showModal();
+    d.showModal();
   }
 
   /* ---------- Save handlers ---------- */
@@ -247,8 +252,8 @@
   function fillCategoryFilters(){
     const set = new Set(state.transactions.map(t => t.category).concat(state.budgets.map(b=>b.category)).filter(Boolean));
     const options = Array.from(set).sort().map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
-    byId('categoryFilter').innerHTML = `<option value="">All</option>${options}`;
-    byId('categoryList').innerHTML = options;
+    byId('categoryFilter') && (byId('categoryFilter').innerHTML = `<option value="">All</option>${options}`);
+    byId('categoryList') && (byId('categoryList').innerHTML = options);
   }
 
   function monthKey(d=new Date()){ return d.toISOString().slice(0,7); } // YYYY-MM
@@ -265,15 +270,16 @@
     const expenseAll = state.transactions.filter(t=>t.amount<0).reduce((s,t)=> s+Math.abs(t.amount),0);
     const balance = incomeAll - expenseAll;
 
-    byId('kpiBalance').textContent = fmtMoney(balance);
-    byId('kpiIncomeMonth').textContent = fmtMoney(incomeMonth);
-    byId('kpiExpenseMonth').textContent = fmtMoney(expenseMonth);
-    byId('kpiNetMonth').textContent = fmtMoney(netMonth);
-    $('#monthLabel').textContent = monthName(new Date()) + ' totals';
+    byId('kpiBalance') && (byId('kpiBalance').textContent = fmtMoney(balance));
+    byId('kpiIncomeMonth') && (byId('kpiIncomeMonth').textContent = fmtMoney(incomeMonth));
+    byId('kpiExpenseMonth') && (byId('kpiExpenseMonth').textContent = fmtMoney(expenseMonth));
+    byId('kpiNetMonth') && (byId('kpiNetMonth').textContent = fmtMoney(netMonth));
+    $('#monthLabel') && ($('#monthLabel').textContent = monthName(new Date()) + ' totals');
   }
 
   function renderBudgets(){
-    const ul = byId('budgetList'); ul.innerHTML = '';
+    const ul = byId('budgetList'); if(!ul) return;
+    ul.innerHTML = '';
     const mk = monthKey(new Date());
     const frag = document.createDocumentFragment();
 
@@ -306,15 +312,15 @@
 
     ul.onclick = async (e)=>{
       const eb = e.target.getAttribute('data-edit-budget');
-      const db = e.target.getAttribute('data-del-budget');
+      const dbtn = e.target.getAttribute('data-del-budget');
       if(eb){
         const rec = state.budgets.find(x => x.id === Number(eb));
         openBudgetDialog(rec);
       }
-      if(db){
+      if(dbtn){
         if(confirm('Delete this budget?')){
-          await idb.delete(state.db, 'budget', Number(db));
-          state.budgets = state.budgets.filter(x => x.id !== Number(db));
+          await idb.delete(state.db, 'budget', Number(dbtn));
+          state.budgets = state.budgets.filter(x => x.id !== Number(dbtn));
           renderAll();
         }
       }
@@ -323,12 +329,12 @@
 
   function filteredTx(){
     const f = {
-      from: byId('fromDate').value,
-      to: byId('toDate').value,
-      type: byId('typeFilter').value,
-      category: byId('categoryFilter').value,
-      q: byId('searchInput').value.toLowerCase().trim(),
-      sort: byId('sortBy').value
+      from: byId('fromDate')?.value,
+      to: byId('toDate')?.value,
+      type: byId('typeFilter')?.value,
+      category: byId('categoryFilter')?.value,
+      q: (byId('searchInput')?.value || '').toLowerCase().trim(),
+      sort: byId('sortBy')?.value
     };
     let list = [...state.transactions];
     if(f.from) list = list.filter(t => t.date >= f.from);
@@ -340,7 +346,6 @@
       (t.category||'').toLowerCase().includes(f.q) ||
       Math.abs(t.amount).toFixed(2).includes(f.q)
     );
-
     const sorters = {
       'date-desc': (a,b)=> b.date.localeCompare(a.date),
       'date-asc': (a,b)=> a.date.localeCompare(b.date),
@@ -352,10 +357,10 @@
   }
 
   function renderTransactions(){
-    const tbody = byId('txTableBody');
+    const tbody = byId('txTableBody'); if(!tbody) return;
     tbody.innerHTML = '';
     const rows = filteredTx();
-    byId('txCount').textContent = `${rows.length} item${rows.length!==1?'s':''}`;
+    byId('txCount') && (byId('txCount').textContent = `${rows.length} item${rows.length!==1?'s':''}`);
 
     const frag = document.createDocumentFragment();
     rows.forEach(t => {
@@ -392,15 +397,15 @@
   }
 
   function renderDaily(){
-    const ul = byId('dailyList'); ul.innerHTML = '';
+    const ul = byId('dailyList'); if(!ul) return;
+    ul.innerHTML = '';
     const now = new Date();
     const year = now.getFullYear(), month = now.getMonth(); // 0-based
     const lastDay = new Date(year, month+1, 0).getDate();
     const mk = monthKey(now);
 
-    // precompute month totals
     const monthTx = state.transactions.filter(t => t.date.startsWith(mk));
-    const monthExp = monthTx.filter(t=>t.amount<0).reduce((s,t)=> s + Math.abs(t.amount), 0) || 1; // avoid div0
+    const monthExp = monthTx.filter(t=>t.amount<0).reduce((s,t)=> s + Math.abs(t.amount), 0) || 1;
 
     const frag = document.createDocumentFragment();
     for(let d=1; d<=lastDay; d++){
@@ -429,7 +434,7 @@
     const ctx = canvas.getContext('2d');
     const DPR = window.devicePixelRatio || 1;
     const w = canvas.clientWidth || canvas.parentElement.clientWidth - 16;
-    const h = canvas.getAttribute('height');
+    const h = +canvas.getAttribute('height');
     canvas.width = w * DPR; canvas.height = h * DPR; canvas.style.width = w+'px';
     ctx.setTransform(DPR,0,0,DPR,0,0);
     ctx.clearRect(0,0,w,h);
@@ -437,7 +442,7 @@
   }
 
   function drawTrend(){
-    const cvs = byId('trendChart');
+    const cvs = byId('trendChart'); if(!cvs) return;
     const {ctx,w,h} = chartInit(cvs);
     const days = 30;
     const now = new Date();
@@ -471,13 +476,13 @@
   }
 
   function drawExpenseBars(){
-    const cvs = byId('expenseBarChart');
+    const cvs = byId('expenseBarChart'); if(!cvs) return;
     const {ctx,w,h} = chartInit(cvs);
     const mk = monthKey(new Date());
     const monthTx = filteredTx().filter(t => t.date.startsWith(mk)); // respects filters
-    const daysInMonth = new Date().getDate(); // up to today
     const year = new Date().getFullYear();
     const month = new Date().getMonth();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
     const data = [];
     for(let d=1; d<=daysInMonth; d++){
       const dd = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -485,9 +490,10 @@
       data.push(exp);
     }
     const max = Math.max(1, ...data);
-    const barW = Math.max(2, Math.floor((w - data.length) / data.length));
+    const gap = 1;
+    const barW = Math.max(2, Math.floor((w - gap*(data.length-1)) / data.length));
     data.forEach((v,i)=>{
-      const x = i * (barW + 1);
+      const x = i * (barW + gap);
       const bh = Math.round((v/max)* (h-10));
       ctx.fillStyle = v ? getComputedStyle(document.documentElement).getPropertyValue('--neg') : '#ffffff22';
       ctx.fillRect(x, h-bh, barW, bh);
@@ -495,7 +501,7 @@
   }
 
   function drawBudgetDonut(){
-    const cvs = byId('budgetDonut');
+    const cvs = byId('budgetDonut'); if(!cvs) return;
     const ctx = cvs.getContext('2d');
     const { width:W, height:H } = cvs;
     const cx = W/2, cy = H/2, r = Math.min(cx,cy)-6, thickness = 18;
@@ -506,12 +512,11 @@
       .reduce((s,t)=> s + Math.abs(t.amount), 0);
     const pct = monthBudget ? Math.min(100, Math.round((monthSpent/monthBudget)*100)) : 0;
 
-    // background ring
     ctx.clearRect(0,0,W,H);
     ctx.lineWidth = thickness; ctx.lineCap = 'round';
+    // background ring
     ctx.strokeStyle = '#ffffff22';
     ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
-
     // progress ring
     const start = -Math.PI/2;
     const end = start + (Math.PI*2) * (pct/100);
@@ -521,8 +526,8 @@
     ctx.strokeStyle = grad;
     ctx.beginPath(); ctx.arc(cx,cy,r,start,end); ctx.stroke();
 
-    byId('donutPct').textContent = `${pct}%`;
-    byId('donutCaption').textContent = `${fmtMoney(monthSpent)} / ${fmtMoney(monthBudget || 0)}`;
+    byId('donutPct') && (byId('donutPct').textContent = `${pct}%`);
+    byId('donutCaption') && (byId('donutCaption').textContent = `${fmtMoney(monthSpent)} / ${fmtMoney(monthBudget || 0)}`);
   }
 
   /* ---------- Export / Import ---------- */
@@ -577,9 +582,9 @@
   /* ---------- Install / PWA ---------- */
   function setupInstall(){
     window.addEventListener('beforeinstallprompt', (e)=>{
-      e.preventDefault(); state.installPrompt = e; byId('installBtn').hidden = false;
+      e.preventDefault(); state.installPrompt = e; byId('installBtn') && (byId('installBtn').hidden = false);
     });
-    byId('installBtn').addEventListener('click', async ()=>{
+    byId('installBtn')?.addEventListener('click', async ()=>{
       if(!state.installPrompt) return;
       const evt = state.installPrompt; state.installPrompt = null; byId('installBtn').hidden = true;
       await evt.prompt();
@@ -589,74 +594,50 @@
   function maybeShowIosTip(){
     const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if(isIos && !isStandalone){ setTimeout(()=>{ byId('iosTip').hidden = false; }, 800); }
+    if(isIos && !isStandalone && byId('iosTip')){ setTimeout(()=>{ byId('iosTip').hidden = false; }, 800); }
+  }
+
+  /* ---------- Bottom Tab Bar ---------- */
+  function setupTabs(){
+    // Only add if the page has a <main>
+    if(!$('main')) return;
+
+    // Create tab bar if not present
+    if(!$('.tabbar')){
+      const bar = document.createElement('nav');
+      bar.className = 'tabbar';
+      bar.innerHTML = `
+        <button id="tabOverview" class="active" aria-label="Overview">🏠<br><small>Overview</small></button>
+        <button id="tabBudgets" aria-label="Budgets">📊<br><small>Budgets</small></button>
+        <button id="tabTx" aria-label="Transactions">💵<br><small>Transactions</small></button>
+        <button id="tabSettings" aria-label="Settings">⚙️<br><small>Settings</small></button>
+      `;
+      document.body.appendChild(bar);
+    }
+    const bar = $('.tabbar');
+
+    function revealSectionFromAnchor(anchorId){
+      // hide all top-level sections
+      $$('main > section').forEach(sec => sec.hidden = true);
+      // find the heading then its section
+      const el = byId(anchorId);
+      const sec = el ? el.closest('section') : null;
+      (sec || $('section.summary')).hidden = false;
+    }
+
+    // Wire tabs
+    const setActive = id => { bar.querySelectorAll('button').forEach(b=>b.classList.remove('active')); byId(id).classList.add('active'); };
+
+    byId('tabOverview').addEventListener('click', ()=>{ setActive('tabOverview'); revealSectionFromAnchor('summaryTitle'); window.scrollTo({top:0,behavior:'smooth'}); });
+    byId('tabBudgets').addEventListener('click', ()=>{ setActive('tabBudgets'); revealSectionFromAnchor('budgetsTitle'); });
+    byId('tabTx').addEventListener('click', ()=>{ setActive('tabTx'); revealSectionFromAnchor('txTitle'); });
+    byId('tabSettings').addEventListener('click', ()=>{ setActive('tabSettings'); openSettings(); });
+
+    // Start on Overview
+    revealSectionFromAnchor('summaryTitle');
   }
 
   /* ---------- Helpers ---------- */
   function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
   function escapeHtml(s=''){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
-  /* ---------- Bottom Tab Bar ---------- */
-  document.addEventListener('DOMContentLoaded', () => {
-    const tabs = [
-      { id: 'tabOverview', section: 'summary' },
-      { id: 'tabBudgets', section: 'budgets' },
-      { id: 'tabTx', section: 'txTitle' },
-      { id: 'tabSettings', action: () => openSettings() }
-    ];
-
-    // create tab bar
-    const bar = document.createElement('nav');
-    bar.className = 'tabbar';
-    bar.innerHTML = `
-      <button id="tabOverview" class="active">🏠<br><small>Overview</small></button>
-      <button id="tabBudgets">📊<br><small>Budgets</small></button>
-      <button id="tabTx">💵<br><small>Transactions</small></button>
-      <button id="tabSettings">⚙️<br><small>Settings</small></button>
-    `;
-    document.body.appendChild(bar);
-
-    function showSection(sectionId){
-      $$('main > section').forEach(sec => sec.hidden = true);
-      if(sectionId){
-        const sec = document.querySelector(`section.${sectionId}`) || document.getElementById(sectionId);
-        if(sec) sec.hidden = false;
-      }
-    }
-
-    tabs.forEach(t => {
-      byId(t.id)?.addEventListener('click', () => {
-        // reset active
-        bar.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-        byId(t.id).classList.add('active');
-
-        if(t.section){ showSection(t.section); }
-        if(t.action){ t.action(); }
-      });
-    });
-
-    // initial state: show overview only
-    showSection('summary');
-     function showSection(selector){
-      // Hide all top-level sections
-      $$('main > section').forEach(sec => sec.hidden = true);
-
-      // Allow both: class names (e.g., 'summary', 'budgets') and element IDs (e.g., 'txTitle')
-      let sec = document.querySelector(`section.${selector}`) || document.getElementById(selector);
-
-      // If we matched a child (like an H2), reveal its parent section
-      if (sec && sec.tagName !== 'SECTION') sec = sec.closest('section');
-
-      // Fallback to Overview if nothing found
-      (sec || document.querySelector('section.summary')).hidden = false;
-    }
-
-    // Update the Transactions tab mapping to the section's class:
-    byId('tabTx')?.addEventListener('click', () => {
-      bar.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-      byId('tabTx').classList.add('active');
-      showSection('card'); // show the first 'card' by default, then scroll to txTitle
-      const txSec = byId('txTitle')?.closest('section');
-      if (txSec) { $$('main > section').forEach(sec => sec.hidden = true); txSec.hidden = false; }
-    });
-  });
 })();
