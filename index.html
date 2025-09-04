@@ -1,25 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="auto">
 <head>
   <meta charset="utf-8" />
-  <!-- Viewport + iOS safe areas -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
   <title>Ledgerly — Budget & Expenses</title>
   <meta name="description" content="Professional money, expenses, income and budget tracker. PWA. Offline-first, iOS-friendly." />
 
-  <!-- PWA manifest & theme -->
+  <!-- PWA -->
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0f172a" />
 
-  <!-- iOS PWA meta -->
+  <!-- iOS -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Ledgerly">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="mask-icon" href="icons/mask.svg" color="#0ea5e9">
 
-  <!-- Favicons (fallbacks) -->
+  <!-- Icons -->
   <link rel="icon" sizes="48x48" href="icons/icon-48.png">
   <link rel="icon" sizes="192x192" href="icons/icon-192.png">
   <link rel="icon" sizes="512x512" href="icons/icon-512.png">
@@ -28,7 +27,7 @@
   <link rel="preload" href="styles.css" as="style">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="">
 <header class="app-header">
   <div class="brand">
     <span class="logo" aria-hidden="true">∑</span>
@@ -36,14 +35,12 @@
   </div>
 
   <div class="header-actions">
+    <button id="settingsBtn" class="btn ghost" aria-haspopup="dialog" aria-controls="settingsDialog">Settings</button>
     <button id="addBtn" class="btn primary" aria-haspopup="dialog" aria-controls="txDialog">+ Add</button>
     <button id="exportBtn" class="btn ghost" aria-label="Export data">Export</button>
-
     <label class="file-btn ghost">
-      <input id="importFile" type="file" accept="application/json" aria-label="Import data file">
-      Import
+      <input id="importFile" type="file" accept="application/json" aria-label="Import data file">Import
     </label>
-
     <button id="installBtn" class="btn install" hidden>Install</button>
   </div>
 </header>
@@ -51,26 +48,49 @@
 <main id="main" class="container">
   <!-- Overview / KPIs -->
   <section aria-labelledby="summaryTitle" class="card summary">
-    <h2 id="summaryTitle">Overview</h2>
+    <div class="between">
+      <h2 id="summaryTitle">Overview</h2>
+      <div class="hint" id="monthLabel"></div>
+    </div>
     <div class="kpis" role="list">
       <div class="kpi" role="listitem">
-        <div class="kpi-label">Balance</div>
+        <div class="kpi-label">Balance (All-time)</div>
         <div class="kpi-value" id="kpiBalance">$0.00</div>
       </div>
       <div class="kpi" role="listitem">
-        <div class="kpi-label">Income</div>
-        <div class="kpi-value pos" id="kpiIncome">$0.00</div>
+        <div class="kpi-label">This Month — Income</div>
+        <div class="kpi-value pos" id="kpiIncomeMonth">$0.00</div>
       </div>
       <div class="kpi" role="listitem">
-        <div class="kpi-label">Expenses</div>
-        <div class="kpi-value neg" id="kpiExpense">$0.00</div>
+        <div class="kpi-label">This Month — Expenses</div>
+        <div class="kpi-value neg" id="kpiExpenseMonth">$0.00</div>
       </div>
       <div class="kpi" role="listitem">
-        <div class="kpi-label">Budget Left</div>
-        <div class="kpi-value" id="kpiBudgetLeft">$0.00</div>
+        <div class="kpi-label">Net This Month</div>
+        <div class="kpi-value" id="kpiNetMonth">$0.00</div>
       </div>
     </div>
-    <canvas id="trendChart" height="100" aria-label="30-day cashflow chart" role="img"></canvas>
+
+    <div class="charts">
+      <div class="chart-card">
+        <h3 class="chart-title">30-Day Running Balance</h3>
+        <canvas id="trendChart" height="120" aria-label="30-day running balance line chart" role="img"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3 class="chart-title">This Month: Daily Expenses</h3>
+        <canvas id="expenseBarChart" height="120" aria-label="Daily expenses bar chart" role="img"></canvas>
+      </div>
+      <div class="chart-card">
+        <h3 class="chart-title">Month Budget Usage</h3>
+        <div class="donut-wrap">
+          <canvas id="budgetDonut" width="160" height="160" aria-label="Budget spent vs remaining donut" role="img"></canvas>
+          <div class="donut-center">
+            <div id="donutPct">0%</div>
+            <small id="donutCaption">Spent</small>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- Filters -->
@@ -125,26 +145,33 @@
     <ul id="budgetList" class="budget-list" aria-live="polite"></ul>
   </section>
 
+  <!-- Daily breakdown (current month) -->
+  <section aria-labelledby="dailyTitle" class="card">
+    <h2 id="dailyTitle">Day-by-Day (This Month)</h2>
+    <ul id="dailyList" class="daily-list" aria-live="polite"></ul>
+  </section>
+
   <!-- Transactions -->
   <section aria-labelledby="txTitle" class="card">
     <div class="between">
       <h2 id="txTitle">Transactions</h2>
       <div class="hint" id="txCount">0 items</div>
     </div>
-
-    <table class="table" aria-describedby="txTitle">
-      <thead>
-        <tr>
-          <th scope="col">Date</th>
-          <th scope="col">Type</th>
-          <th scope="col">Category</th>
-          <th scope="col" class="right">Amount</th>
-          <th scope="col">Note</th>
-          <th scope="col"><span class="sr-only">Actions</span></th>
-        </tr>
-      </thead>
-      <tbody id="txTableBody"></tbody>
-    </table>
+    <div class="table-wrapper">
+      <table class="table" aria-describedby="txTitle">
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Type</th>
+            <th scope="col">Category</th>
+            <th scope="col" class="right">Amount</th>
+            <th scope="col">Note</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody id="txTableBody"></tbody>
+      </table>
+    </div>
   </section>
 </main>
 
@@ -214,6 +241,45 @@
   </form>
 </dialog>
 
+<!-- Dialog: Settings -->
+<dialog id="settingsDialog" aria-labelledby="settingsTitle">
+  <form id="settingsForm" method="dialog">
+    <header class="dialog-header">
+      <h3 id="settingsTitle">Settings</h3>
+      <button class="icon-btn" id="closeSettings" aria-label="Close">✕</button>
+    </header>
+    <div class="grid">
+      <label>
+        <span>Theme</span>
+        <select id="setTheme">
+          <option value="auto">Auto</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
+      <label>
+        <span>Primary Color</span>
+        <input id="setPrimary" type="color" value="#0ea5e9" aria-label="Primary color">
+      </label>
+      <label>
+        <span>Currency</span>
+        <input id="setCurrency" type="text" maxlength="3" placeholder="USD, EUR…" pattern="[A-Za-z]{3}">
+      </label>
+      <label>
+        <span>Compact Mode</span>
+        <select id="l,setDensity">
+          <option value="">Comfortable</option>
+          <option value="dense">Compact</option>
+        </select>
+      </label>
+    </div>
+    <footer class="dialog-footer">
+      <button class="btn" value="cancel" type="button" id="cancelSettings">Cancel</button>
+      <button class="btn primary" id="saveSettings" type="submit">Save</button>
+    </footer>
+  </form>
+</dialog>
+
 <!-- iOS Add-to-Home tip -->
 <div id="iosTip" role="dialog" aria-live="polite" class="ios-tip" hidden>
   <button class="icon-btn tip-close" id="closeIosTip" aria-label="Close">✕</button>
@@ -225,7 +291,6 @@
   <small>© <span id="year"></span> Ledgerly. All data stays on your device.</small>
 </footer>
 
-<!-- App JS -->
 <script src="app.js" defer></script>
 </body>
 </html>
