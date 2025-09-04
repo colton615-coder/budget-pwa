@@ -1,212 +1,101 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <title>Budget Buddy</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#111111" />
+  <!-- (Optional PWA bits — safe if missing) -->
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <title>Budget Buddy — v2</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-  <script type="module" src="app.js" defer></script>
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <!-- Your stylesheet -->
+  <link rel="stylesheet" href="./app.css" />
+  <style>
+    /* Minimal fallbacks in case app.css is missing */
+    body { font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#0f1115; color:#e7e9ee; }
+    .card-grid { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; padding:12px; }
+    .card { background:#161a22; border:1px solid #222736; border-radius:12px; padding:12px; }
+    .label { font-size:.85rem; opacity:.85; }
+    .value { font-size:1.6rem; font-weight:700; margin-top:4px; }
+    .muted { opacity:.7; }
+    .section { padding:12px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; }
+    input, select, button { font-size:16px; padding:10px 12px; border-radius:10px; border:1px solid #2a3142; background:#121620; color:#e7e9ee; }
+    button { cursor:pointer; font-weight:700; }
+    .chart-wrap { padding:12px; }
+    .navbar { display:flex; gap:8px; padding:10px 12px; background:#0f1115cc; border-top:1px solid #222736; }
+    .main-scroll { min-height: 100dvh; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+  </style>
 </head>
 <body>
-  <header class="app-header">
-    <h1>Budget Buddy</h1>
-    <button id="installBtn" class="btn small" hidden>Install</button>
-  </header>
+  <!-- MAIN SCROLL AREA -->
+  <main class="main-scroll" id="app">
 
-  <main id="app" class="app">
-    <!-- Dashboard -->
-    <section id="view-dashboard" class="view active" aria-labelledby="tab-dashboard" role="region">
-      <div class="cards">
-        <div class="card">
-          <div class="label">Monthly Income</div>
-          <div id="monthlyIncome" class="value">$0</div>
-        </div>
-        <div class="card">
-          <div class="label">Monthly Expenses</div>
-          <div id="monthlyExpenses" class="value">$0</div>
-        </div>
-        <div class="card">
-          <div class="label">Net (Income - Expenses)</div>
-          <div id="monthlyNet" class="value">$0</div>
-        </div>
+    <!-- DASHBOARD METRICS -->
+    <section id="dashboard" class="card-grid">
+      <div class="card">
+        <div class="label">Income (MTD)</div>
+        <div id="monthlyIncome" class="value">$0.00</div>
       </div>
-<!-- DASHBOARD METRICS -->
-<section id="dashboard" class="card-grid">
-  <div class="card">
-    <div class="label">Income (MTD)</div>
-    <div id="monthlyIncome" class="value">$0.00</div>
-  </div>
 
-  <div class="card">
-    <div class="label" data-expense-label>Spent this month (MTD)</div>
-    <div id="monthlyExpenses" class="value">$0.00</div>
-    <small id="recurringBillsNote" class="muted"></small>
-  </div>
+      <div class="card">
+        <div class="label" data-expense-label>Spent this month (MTD)</div>
+        <div id="monthlyExpenses" class="value">$0.00</div>
+        <small id="recurringBillsNote" class="muted"></small>
+      </div>
 
-  <div class="card">
-    <div class="label">Net (Income − Spend)</div>
-    <div id="netAmount" class="value">$0.00</div>
-  </div>
-</section>
-
-<!-- VIEW TOGGLE + CHART -->
-<div id="dashboardControls"></div>
-<div class="chart-wrap">
-  <canvas id="summaryChart" height="220"></canvas>
-</div>
-      <canvas id="budgetChart" height="220" aria-label="Budget breakdown chart"></canvas>
-
-      <div class="list-block">
-        <h2>Upcoming (next 14 days)</h2>
-        <ul id="upcomingList" class="list"></ul>
+      <div class="card">
+        <div class="label">Net (Income − Spend)</div>
+        <div id="netAmount" class="value">$0.00</div>
       </div>
     </section>
-<input id="expenseName">
-<input id="expenseCategory">
-<input id="expenseAmount" type="number" step="0.01">
-<select id="expenseFrequency"> <!-- values: oneoff, monthly, ... --></select>
-<input id="expenseDate" type="date"> <!-- optional -->
-<button id="saveExpenseBtn">Save Expense</button>
-    <!-- Add Expense -->
-    <section id="view-expense" class="view" aria-labelledby="tab-expense" role="region">
-      <h2>Add Expense</h2>
-      <form id="expenseForm" class="form">
-        <label>
-          Name
-          <input id="expName" required maxlength="64" placeholder="Rent, Groceries, Netflix">
-        </label>
-        <label>
-          Amount ($)
-          <input id="expAmount" type="number" inputmode="decimal" step="0.01" required>
-        </label>
-        <label>
-          Category
-          <input id="expCategory" maxlength="48" placeholder="Housing, Food, Subscriptions">
-        </label>
-        <label>
-          Cadence
-          <select id="expCadence">
-            <option value="oneoff" selected>One‑off</option>
+
+    <!-- VIEW TOGGLE + CHART -->
+    <div id="dashboardControls" class="section"></div>
+    <div class="chart-wrap">
+      <canvas id="summaryChart" height="220"></canvas>
+    </div>
+
+    <!-- ADD EXPENSE -->
+    <section class="section" id="expenses">
+      <h2 style="font-size:1.1rem;margin:0 0 8px 0;">Add Expense</h2>
+      <form id="expenseForm">
+        <div class="row">
+          <input id="expenseName" placeholder="Name (e.g., Walmart)" />
+          <input id="expenseCategory" placeholder="Category (e.g., Groceries)" />
+          <input id="expenseAmount" type="number" step="0.01" placeholder="Amount" inputmode="decimal" />
+          <select id="expenseFrequency" aria-label="Frequency">
+            <option value="oneoff" selected>One-off</option>
             <option value="monthly">Monthly</option>
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Bi‑weekly</option>
-            <option value="yearly">Yearly</option>
           </select>
-        </label>
-        <label>
-          Due / Date
-          <input id="expDate" type="date">
-        </label>
-        <div class="row">
-          <button class="btn primary" type="submit">Save Expense</button>
-          <button class="btn" type="reset">Clear</button>
+          <input id="expenseDate" type="date" aria-label="Date" />
+          <button id="saveExpenseBtn" type="button">Save Expense</button>
         </div>
       </form>
-
-      <div class="list-block">
-        <h3>Expenses</h3>
-        <ul id="expenseList" class="list"></ul>
-      </div>
     </section>
 
-    <!-- Add Income -->
-    <section id="view-income" class="view" aria-labelledby="tab-income" role="region">
-      <h2>Add Income</h2>
-      <form id="incomeForm" class="form">
-        <label>
-          Name
-          <input id="incName" required maxlength="64" placeholder="Paycheck, Side gig, Refund">
-        </label>
-        <label>
-          Amount ($)
-          <input id="incAmount" type="number" inputmode="decimal" step="0.01" required>
-        </label>
-        <label>
-          Cadence
-          <select id="incCadence">
-            <option value="monthly" selected>Monthly</option>
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Bi‑weekly</option>
-            <option value="yearly">Yearly</option>
-            <option value="oneoff">One‑off</option>
-          </select>
-        </label>
-        <label>
-          First / Next Pay Date
-          <input id="incDate" type="date">
-        </label>
-        <div class="row">
-          <button class="btn primary" type="submit">Save Income</button>
-          <button class="btn" type="reset">Clear</button>
-        </div>
-      </form>
-
-      <div class="list-block">
-        <h3>Income</h3>
-        <ul id="incomeList" class="list"></ul>
-      </div>
+    <!-- EXPENSES LIST (optional, your JS may render here) -->
+    <section class="section">
+      <h2 style="font-size:1.1rem;margin:0 0 8px 0;">Recent Expenses</h2>
+      <div id="expensesList"></div>
     </section>
 
-    <!-- History / Reports -->
-    <section id="view-history" class="view" aria-labelledby="tab-history" role="region">
-      <h2>History & Reports</h2>
-      <div class="list-block">
-        <h3>This Month</h3>
-        <ul id="historyList" class="list"></ul>
-      </div>
-      <div class="row">
-        <button id="exportBtn" class="btn">Export JSON</button>
-        <button id="wipeBtn" class="btn danger">Wipe Data</button>
-      </div>
-      <p class="muted small">Data is private and saved on‑device (localStorage). Works offline.</p>
-    </section>
   </main>
 
-  <nav class="tabbar" role="tablist">
-    <button id="tab-dashboard" class="tab active" data-target="view-dashboard" role="tab" aria-controls="view-dashboard">Dashboard</button>
-    <button id="tab-expense" class="tab" data-target="view-expense" role="tab" aria-controls="view-expense">Expenses</button>
-    <button id="tab-income" class="tab" data-target="view-income" role="tab" aria-controls="view-income">Income</button>
-    <button id="tab-history" class="tab" data-target="view-history" role="tab" aria-controls="view-history">History</button>
+  <!-- BOTTOM NAV (sticky; won't block scroll) -->
+  <nav class="navbar">
+    <button class="btn" data-nav-target="dashboard">Dashboard</button>
+    <button class="btn" data-nav-target="expenses">Expenses</button>
   </nav>
 
-  <script>
-    // PWA install prompt
-    let deferredPrompt;
-    const installBtn = document.getElementById('installBtn');
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      installBtn.hidden = false;
-    });
-    installBtn?.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      installBtn.hidden = true;
-    });
-  </script>
-<script>
-  // === PATCH: belt-and-suspenders to kill accidental horizontal scroll ===
-  (function(){
-    const clamp = () => { document.documentElement.style.overflowX = 'hidden'; document.body.style.overflowX = 'hidden'; };
-    window.addEventListener('resize', clamp, { passive: true });
-    window.addEventListener('orientationchange', clamp, { passive: true });
-    clamp();
-  })();
-</script>
-<script>
-  // PATCH: purge any previous scroll position & ensure vertical-only scroll feel
-  addEventListener('pageshow', () => scrollTo(0, 0), { once: true });
-  document.documentElement.style.overflowX = 'hidden';
-  document.body.style.overflowX = 'hidden';
-</script>
-</body>
+  <!-- SCRIPTS (order matters: Chart.js before app.js) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="./app.js"></script>
+  <script>
+    // Optional: lightweight SW register (safe if file missing)
+    if ('serviceWorker' in navigator) {
+      try { navigator.serviceWorker.register('./sw.js'); } catch (e) {}
+    }
+  </script>
+  <script src="./app.js"></script>
+</body>
 </html>
