@@ -641,3 +641,92 @@
   function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
   function escapeHtml(s=''){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
 })();
+/* === PATCH: reliable bottom tabs + no messy scrolling === */
+(function initBottomTabsAndLayout(){
+  // re-define setupTabs with a more robust version and run it now
+  function setupTabs() {
+    const main = document.querySelector('main');
+    if (!main) return;
+
+    // Create tabbar once
+    let bar = document.querySelector('.tabbar');
+    if (!bar) {
+      bar = document.createElement('nav');
+      bar.className = 'tabbar';
+      bar.innerHTML = `
+        <button id="tabOverview" class="active" aria-label="Overview">🏠<br><small>Overview</small></button>
+        <button id="tabBudgets" aria-label="Budgets">📊<br><small>Budgets</small></button>
+        <button id="tabTx" aria-label="Transactions">💵<br><small>Transactions</small></button>
+        <button id="tabSettings" aria-label="Settings">⚙️<br><small>Settings</small></button>
+      `;
+      document.body.appendChild(bar);
+    }
+
+    // Prevent full-page scroll; we control scroll only inside <main>
+    document.body.style.overflow = 'hidden';
+    main.style.overflow = 'auto';
+
+    // Layout: make <main> exactly fit between sticky header and fixed tabbar
+    const header = document.querySelector('.app-header');
+    function layout() {
+      const headerH = header ? header.offsetHeight : 0;
+      const tabH = bar.offsetHeight;
+      // Use innerHeight for mobile viewport correctness (includes/updates with dynamic bars)
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      const safePadding = 4; // small breathing room
+      const h = Math.max(200, vh - headerH - tabH - safePadding);
+      main.style.height = h + 'px';
+    }
+    layout();
+    window.addEventListener('resize', layout);
+    window.addEventListener('orientationchange', layout);
+
+    // Helper: show only one top-level section
+    function showOnlySectionByAnchor(anchorId) {
+      // hide all sections
+      Array.from(main.querySelectorAll(':scope > section')).forEach(sec => sec.hidden = true);
+      // find the section that contains the anchor (usually an <h2 id="...">)
+      const anchor = document.getElementById(anchorId);
+      const section = anchor ? anchor.closest('section') : null;
+      (section || main.querySelector('section.summary') || main.querySelector('section') ).hidden = false;
+      // reset scroll position inside the scroll container
+      main.scrollTo({ top: 0, behavior: 'instant' in main ? 'instant' : 'auto' });
+    }
+
+    // Activate tab UI styles
+    function setActive(btn) {
+      bar.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    // One listener for all buttons (more robust for emoji/small clicks)
+    bar.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+
+      if (btn.id === 'tabOverview') {
+        setActive(btn);
+        showOnlySectionByAnchor('summaryTitle');
+      }
+      else if (btn.id === 'tabBudgets') {
+        setActive(btn);
+        showOnlySectionByAnchor('budgetsTitle');
+      }
+      else if (btn.id === 'tabTx') {
+        setActive(btn);
+        showOnlySectionByAnchor('txTitle');
+      }
+      else if (btn.id === 'tabSettings') {
+        setActive(btn);
+        // Don't hide current section; open settings dialog on top
+        if (typeof openSettings === 'function') openSettings();
+      }
+    });
+
+    // Initial view = Overview
+    showOnlySectionByAnchor('summaryTitle');
+  }
+
+  // Replace any earlier setupTabs definition and run now
+  try { setupTabs(); } catch {}
+})();
