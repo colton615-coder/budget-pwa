@@ -1,756 +1,489 @@
-/* ===== Budget Buddy v1.4 — original look + MTD + iOS fixes ===== */
-// Storage keys
-const EXP_KEY='expenses'; const INC_KEY='incomes';
+/* Ledgerly – vanilla JS PWA money tracker
+   Storage: IndexedDB (with a tiny helper)
+   Accessibility: ARIA live regions, keyboardable dialogs
+*/
+(() => {
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const byId = id => document.getElementById(id);
 
-let expenses = JSON.parse(localStorage.getItem(EXP_KEY) || '[]');
-let incomes  = JSON.parse(localStorage.getItem(INC_KEY) || '[]');
-
-const $ = (sel)=>document.querySelector(sel);
-const $$ = (sel)=>Array.from(document.querySelectorAll(sel));
-
-// Date helpers
-const startOfMonth = (d=new Date()) => new Date(d.getFullYear(), d.getMonth(), 1);
-const endOfMonth   = (d=new Date()) => new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
-const inThisMonth  = (iso)=> iso ? (d=> d>=startOfMonth() && d<=endOfMonth())(new Date(iso)) : false;
-
-// Migrations
-(function migrate(){
-  let changed=false;
-  for (const e of expenses){ if(!e.createdAt){ e.createdAt=new Date().toISOString(); changed=true; }
-    if(e.frequency==null){ e.frequency='oneoff'; changed=true; }
-    e.amount=Number(e.amount)||0; }
-  if(changed) localStorage.setItem(EXP_KEY, JSON.stringify(expenses));
-})();
-
-// Totals
-const incomeMTD = ()=> (incomes||[]).filter(i=>inThisMonth(i.date||i.createdAt)).reduce((s,i)=>s+(+i.amount||0),0);
-const spentMTD  = ()=> (expenses||[]).filter(e=>inThisMonth(e.date||e.createdAt)).reduce((s,e)=>s+(+e.amount||0),0);
-const recurringMonthly = ()=> (expenses||[]).filter(e=>e.frequency==='monthly').reduce((s,e)=>s+(+e.amount||0),0);
-
-// UI
-const set$ = (sel,val)=>{ const el=$(sel); if(el) el.textContent = `$${(Number(val)||0).toFixed(2)}`; };
-
-// Chart
-function ensureChart(){
-  const c = $('#summaryChart'); if(!c || typeof Chart==='undefined') return null;
-  if(window.summaryChart) return window.summaryChart;
-  window.summaryChart = new Chart(c.getContext('2d'),{
-    type:'bar',
-    data:{ labels:['Income','Expenses','Net'], datasets:[{ label:'This Month', data:[0,0,0] }] },
-    options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true }}, animation:false }
-  });
-  return window.summaryChart;
-}
-
-// Dashboard update
-function updateDashboard(){
-  const inc = incomeMTD();
-  const exp = spentMTD();
-  const net = inc - exp;
-  set$('#monthlyIncome',inc);
-  set$('#monthlyExpenses',exp);
-  const netEl = $('#netAmount'); if(netEl){ netEl.textContent = `$${net.toFixed(2)}`; netEl.classList.toggle('positive', net>=0); }
-
-  const ch = ensureChart();
-  if(ch){ ch.data.datasets[0].data=[inc,exp,net]; try{ ch.update(); }catch{} }
-}
-function set$(sel,val){ const el=$(sel); if(el) el.textContent = `$${(Number(val)||0).toFixed(2)}`; }
-
-// Expenses list render
-function renderExpenses(){
-  const host = $('#expensesList'); if(!host) return;
-  host.innerHTML='';
-  const data = [...expenses].sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  for(const e of data){
-    const row = document.createElement('div'); row.className='item';
-    const left = document.createElement('div'); left.className='left';
-    left.innerHTML = `<div class="name">${e.name||'Expense'}</div><div class="meta">${e.category||'General'} • ${e.frequency} • ${(e.date||e.createdAt||'').slice(0,10)}</div>`;
-    const right = document.createElement('div'); right.className='right';
-    right.innerHTML = `<span class="amount">$${(+e.amount||0).toFixed(2)}</span> <button class="del" data-id="${e.id}">×</button>`;
-    row.append(left,right); host.appendChild(row);
-  }
-  host.querySelectorAll('.del').forEach(btn=>{
-    if(!btn.dataset.bound){ btn.addEventListener('click',()=>{ const id=btn.getAttribute('data-id'); expenses=expenses.filter(x=>x.id!==id); localStorage.setItem(EXP_KEY,JSON.stringify(expenses)); renderExpenses(); updateDashboard(); }); btn.dataset.bound='1'; }
-  });
-}
-
-// Save expense
-function saveExpense(){
-  const name = $('#expenseName')?.value||'';
-  const amount = +($('#expenseAmount')?.value||0);
-  const category = $('#expenseCategory')?.value||'';
-  const frequency = $('#expenseFrequency')?.value||'oneoff';
-  const dateInput = $('#expenseDate')?.value;
-  const dateISO = dateInput ? new Date(dateInput).toISOString() : null;
-  if(!name || !amount){ alert('Enter a name and amount'); return; }
-  const exp = { id: (crypto.randomUUID&&crypto.randomUUID())||String(Date.now()+Math.random()), name, amount, category, frequency, date:dateISO, createdAt:new Date().toISOString() };
-  expenses.push(exp); localStorage.setItem(EXP_KEY,JSON.stringify(expenses));
-  ['expenseName','expenseAmount','expenseCategory','expenseDate'].forEach(id=>{ const el=$('#'+id); if(el) el.value=''; });
-  $('#expenseFrequency').value='oneoff';
-  renderExpenses(); updateDashboard();
-}
-
-// Save income (simple)
-function saveIncome(){
-  const name = $('#incomeName')?.value||'Income';
-  const amount = +($('#incomeAmount')?.value||0);
-  const dateInput = $('#incomeDate')?.value;
-  const dateISO = dateInput ? new Date(dateInput).toISOString() : new Date().toISOString();
-  if(!amount){ alert('Enter an amount'); return; }
-  incomes.push({ id:String(Date.now()+Math.random()), name, amount, createdAt:dateISO, date:dateISO });
-  localStorage.setItem(INC_KEY, JSON.stringify(incomes));
-  $('#incomeName').value=''; $('#incomeAmount').value=''; $('#incomeDate').value='';
-  renderIncome(); updateDashboard();
-}
-function renderIncome(){
-  const host = $('#incomeList'); if(!host) return;
-  host.innerHTML = (incomes||[]).slice(-50).reverse().map(i=>`<div class="item"><div class="left"><div class="name">${i.name||'Income'}</div><div class="meta">${(i.date||i.createdAt||'').slice(0,10)}</div></div><div class="amount">$${(+i.amount||0).toFixed(2)}</div></div>`).join('');
-}
-
-// Tabs
-function showTab(tab){
-  $$('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
-  $$('.page').forEach(p=>p.classList.toggle('active', p.id===`page-${tab}`));
-  window.scrollTo({ top: 0, behavior:'instant' });
-}
-
-// Ready
-document.addEventListener('DOMContentLoaded', () => {
-  // Prevent form submits
-  document.querySelectorAll('form').forEach(f=> f.addEventListener('submit', e=> e.preventDefault()));
-  // Buttons
-  $('#saveExpenseBtn')?.addEventListener('click', saveExpense);
-  $('#clearExpenseBtn')?.addEventListener('click', ()=>{
-    ['expenseName','expenseAmount','expenseCategory','expenseDate'].forEach(id=>{ const el=$('#'+id); if(el) el.value=''; });
-    $('#expenseFrequency').value='oneoff';
-  });
-  $('#saveIncomeBtn')?.addEventListener('click', saveIncome);
-  $('#exportBtn')?.addEventListener('click', ()=>{
-    const blob = new Blob([JSON.stringify({ expenses, incomes }, null, 2)], { type:'application/json' });
-    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='budget-buddy-data.json'; a.click(); URL.revokeObjectURL(url);
-  });
-  $('#clearAllBtn')?.addEventListener('click', ()=>{
-    if(!confirm('Delete ALL expenses and incomes?')) return;
-    expenses=[]; incomes=[];
-    localStorage.setItem(EXP_KEY,'[]'); localStorage.setItem(INC_KEY,'[]');
-    renderExpenses(); renderIncome(); updateDashboard();
-  });
-
-  // Quick amount chips
-  $$('.chip[data-amount]').forEach(ch=> ch.addEventListener('click', ()=>{ const amt = +ch.dataset.amount; const f=$('#expenseAmount'); if(f){ f.value = (+(f.value||0) + amt).toFixed(2); } }));
-
-  // Tabs
-  $$('.tab').forEach(t=> t.addEventListener('click', ()=> showTab(t.dataset.tab)));
-
-  // Initial render
-  renderExpenses(); renderIncome(); updateDashboard();
-});
-/* ===== v1.4.1 — Button fix + Emoji UI (append to end) ===== */
-(function () {
-  if (window.__BB_EMOJI_PATCH__) return; // avoid double-patch
-  window.__BB_EMOJI_PATCH__ = true;
-
-  // --- helpers ---
-  const $  = (s) => document.querySelector(s);
-  const $$ = (s) => Array.from(document.querySelectorAll(s));
-  const n  = (v, d=0) => Number(v ?? d) || d;
-
-  function ready(fn) {
-    if (document.readyState !== 'loading') fn();
-    else document.addEventListener('DOMContentLoaded', fn, { once: true });
-  }
-
-  // Prevent accidental form submits (common cause of "button doesn't work")
-  function preventFormSubmits() {
-    document.querySelectorAll('form').forEach(f => {
-      if (!f.dataset.nosubmit) {
-        f.addEventListener('submit', (e) => e.preventDefault());
-        f.dataset.nosubmit = '1';
-      }
-    });
-  }
-
-  // ---- action wrappers (call whichever exists in your app) ----
-  function bbSaveExpense() {
-    if (typeof saveExpense === 'function') return saveExpense();
-    if (typeof onSaveExpenseClick === 'function') return onSaveExpenseClick();
-
-    // Fallback: minimal inline save using common IDs
-    const name = $('#expenseName')?.value || '';
-    const amount = n($('#expenseAmount')?.value);
-    if (!name || !amount) { alert('Enter a name and amount.'); return; }
-    const category  = $('#expenseCategory')?.value || '';
-    const frequency = $('#expenseFrequency')?.value || 'oneoff';
-    const dval      = $('#expenseDate')?.value;
-    const dateISO   = dval ? new Date(dval).toISOString() : null;
-
-    const EXP_KEY = 'expenses';
-    let expenses  = JSON.parse(localStorage.getItem(EXP_KEY) || '[]');
-    expenses.push({
-      id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now() + Math.random()),
-      name, category, amount, frequency, date: dateISO, createdAt: new Date().toISOString()
-    });
-    localStorage.setItem(EXP_KEY, JSON.stringify(expenses));
-
-    // best-effort refresh if app provided functions exist
-    try { renderExpenses?.(); } catch {}
-    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
-
-    // clear fields
-    ['expenseName','expenseCategory','expenseAmount','expenseDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
-    const f = $('#expenseFrequency'); if (f) f.value = 'oneoff';
-  }
-
-  function bbClearExpenseForm() {
-    ['expenseName','expenseCategory','expenseAmount','expenseDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
-    const f = $('#expenseFrequency'); if (f) f.value = 'oneoff';
-  }
-
-  function bbSaveIncome() {
-    if (typeof saveIncome === 'function') return saveIncome();
-
-    // Fallback inline income add
-    const INC_KEY = 'incomes';
-    let incomes   = JSON.parse(localStorage.getItem(INC_KEY) || '[]');
-    const name    = $('#incomeName')?.value || 'Income';
-    const amount  = n($('#incomeAmount')?.value);
-    const dval    = $('#incomeDate')?.value;
-    const dateISO = dval ? new Date(dval).toISOString() : new Date().toISOString();
-    if (!amount) { alert('Enter income amount'); return; }
-    incomes.push({ id:String(Date.now()+Math.random()), name, amount, date: dateISO, createdAt: dateISO });
-    localStorage.setItem(INC_KEY, JSON.stringify(incomes));
-
-    try { renderIncome?.(); } catch {}
-    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
-
-    ['incomeName','incomeAmount','incomeDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
-  }
-
-  function bbDeleteExpense(id) {
-    if (typeof deleteExpense === 'function') return deleteExpense(id);
-
-    // Fallback inline delete by id or data-del
-    const EXP_KEY = 'expenses';
-    let expenses  = JSON.parse(localStorage.getItem(EXP_KEY) || '[]');
-    expenses = expenses.filter(e => String(e.id) !== String(id));
-    localStorage.setItem(EXP_KEY, JSON.stringify(expenses));
-    try { renderExpenses?.(); } catch {}
-    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
-  }
-
-  function bbExportJSON() {
-    const data = {
-      expenses: JSON.parse(localStorage.getItem('expenses') || '[]'),
-      incomes : JSON.parse(localStorage.getItem('incomes')  || '[]')
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = 'budget-buddy-data.json';
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  }
-
-  function bbClearAll() {
-    if (!confirm('Delete ALL expenses and incomes?')) return;
-    localStorage.setItem('expenses', '[]');
-    localStorage.setItem('incomes',  '[]');
-    try { renderExpenses?.(); renderIncome?.(); } catch {}
-    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
-  }
-
-  function bbShowTab(tab) {
-    if (typeof showTab === 'function') { showTab(tab); return; }
-    // Fallback: classic page switcher with ids page-*
-    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === `page-${tab}`));
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  }
-
-  // ---- Event delegation (one handler fixes all dead buttons) ----
-  function attachDelegatedClicks() {
-    if (document.__bbDelegatedClicksBound) return;
-    document.__bbDelegatedClicksBound = true;
-
-    document.addEventListener('click', (e) => {
-      const t = e.target.closest('[data-action], .tab, [data-del], .del, #saveExpenseBtn, #clearExpenseBtn, #saveIncomeBtn, #exportBtn, #clearAllBtn');
-      if (!t) return;
-
-      // Normalize to an action
-      let action = t.dataset.action;
-      if (!action) {
-        if (t.matches('.tab')) action = 'switch-tab';
-        else if (t.matches('[data-del], .del')) action = 'delete-expense';
-        else if (t.id === 'saveExpenseBtn') action = 'save-expense';
-        else if (t.id === 'clearExpenseBtn') action = 'clear-expense';
-        else if (t.id === 'saveIncomeBtn') action = 'save-income';
-        else if (t.id === 'exportBtn')) action = 'export-json';
-        else if (t.id === 'clearAllBtn') action = 'clear-all';
-      }
-
-      // Route
-      switch (action) {
-        case 'save-expense':  e.preventDefault(); bbSaveExpense(); break;
-        case 'clear-expense': e.preventDefault(); bbClearExpenseForm(); break;
-        case 'save-income':   e.preventDefault(); bbSaveIncome(); break;
-        case 'export-json':   e.preventDefault(); bbExportJSON(); break;
-        case 'clear-all':     e.preventDefault(); bbClearAll(); break;
-        case 'switch-tab':    e.preventDefault(); bbShowTab(t.dataset.tab || 'dashboard'); break;
-        case 'delete-expense':
-          e.preventDefault();
-          const id = t.getAttribute('data-del') || t.dataset.id || t.value || t.getAttribute('data-id');
-          if (id) bbDeleteExpense(id);
-          break;
-        default: break;
-      }
-    }, { passive: false });
-  }
-
-  // ---- Emoji-ize the UI (no HTML edits needed) ----
-  function emojiizeUI() {
-    // Save / Clear (Expenses)
-    const saveExp = $('#saveExpenseBtn'); if (saveExp) { saveExp.textContent = '💾'; saveExp.classList.add('btn-emoji'); saveExp.setAttribute('aria-label','Save Expense'); saveExp.dataset.action = 'save-expense'; }
-    const clrExp = $('#clearExpenseBtn'); if (clrExp) { clrExp.textContent = '🧹'; clrExp.classList.add('btn-emoji'); clrExp.setAttribute('aria-label','Clear'); clrExp.dataset.action = 'clear-expense'; }
-
-    // Income Save
-    const saveInc = $('#saveIncomeBtn'); if (saveInc) { saveInc.textContent = '➕💵'; saveInc.classList.add('btn-emoji'); saveInc.setAttribute('aria-label','Save Income'); saveInc.dataset.action = 'save-income'; }
-
-    // Export / Clear All
-    const exportBtn = $('#exportBtn'); if (exportBtn) { exportBtn.textContent = '📤'; exportBtn.classList.add('btn-emoji'); exportBtn.setAttribute('aria-label','Export JSON'); exportBtn.dataset.action = 'export-json'; }
-    const clearAll  = $('#clearAllBtn'); if (clearAll) { clearAll.textContent = '🗑️'; clearAll.classList.add('btn-emoji'); clearAll.setAttribute('aria-label','Clear All'); clearAll.dataset.action = 'clear-all'; }
-
-    // Tabs
-    const tabIcon = { dashboard:'🏠', expenses:'🧾', income:'💵', history:'📜' };
-    document.querySelectorAll('.tab[data-tab]').forEach(tab => {
-      const k = tab.dataset.tab; if (tabIcon[k]) { tab.textContent = tabIcon[k]; tab.classList.add('btn-emoji'); }
-    });
-
-    // Delete icons inside the expenses list (works with existing renderers)
-    function emojiizeDeletes(root=document) {
-      root.querySelectorAll('.del, [data-del]').forEach(btn => {
-        btn.textContent = '🗑️';
-        btn.classList.add('btn-trash');
-        if (!btn.dataset.action) btn.dataset.action = 'delete-expense';
-        if (!btn.getAttribute('data-id') && btn.getAttribute('data-del')) {
-          btn.setAttribute('data-id', btn.getAttribute('data-del'));
-        }
-      });
-    }
-    emojiizeDeletes();
-
-    // Watch for future list renders and re-emojiize
-    const list = $('#expensesList');
-    if (list && !list.__observer) {
-      const mo = new MutationObserver(() => emojiizeDeletes(list));
-      mo.observe(list, { childList: true, subtree: true });
-      list.__observer = mo;
-    }
-  }
-
-  // ---- Boot sequence ----
-  ready(() => {
-    // Never let CSS lock scrolling
-    document.documentElement.style.overflow = 'auto';
-    document.body.style.overflow = 'auto';
-
-    preventFormSubmits();
-    attachDelegatedClicks();
-    emojiizeUI();
-
-    // Re-run after initial renders
-    setTimeout(emojiizeUI, 200);   // after first render
-    setTimeout(emojiizeUI, 800);   // after chart/layout settles
-  });
-})();
-/* ===== Budget Buddy v1.1 — MTD Expenses Fix ===== */
-
-// --- Storage helpers ---
-const EXP_KEY = 'expenses';
-const INC_KEY = 'incomes';
-
-let expenses = JSON.parse(localStorage.getItem(EXP_KEY) || '[]');
-let incomes  = JSON.parse(localStorage.getItem(INC_KEY) || '[]');
-
-function saveExpensesToStore(){ localStorage.setItem(EXP_KEY, JSON.stringify(expenses)); }
-function saveIncomesToStore(){ localStorage.setItem(INC_KEY, JSON.stringify(incomes)); }
-
-// --- Date utils ---
-function startOfMonth(d=new Date()){ return new Date(d.getFullYear(), d.getMonth(), 1); }
-function endOfMonth(d=new Date()){ return new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999); }
-function isISOInThisMonth(iso){
-  if (!iso) return false;
-  const dt = new Date(iso);
-  return dt >= startOfMonth() && dt <= endOfMonth();
-}
-
-// One-time migration so old items get a createdAt and default frequency
-(function migrateLegacyExpenses(){
-  let changed = false;
-  for (const e of expenses){
-    if (!e.createdAt) { e.createdAt = new Date().toISOString(); changed = true; }
-    if (!('frequency' in e)) { e.frequency = 'oneoff'; changed = true; }
-  }
-  if (changed) saveExpensesToStore();
-})();
-
-// --- Saving NEW expense (use this inside your Save button handler) ---
-function addExpense({ name, category, amount, frequency = 'oneoff', dateISO }){
-  const now = new Date().toISOString();
-  const exp = {
-    id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()),
-    name: String(name || '').trim(),
-    category: String(category || '').trim(),
-    amount: Number(amount) || 0,
-    frequency,                                // 'oneoff' | 'monthly' | ...
-    date: dateISO || null,                    // user-chosen "Due/Date" if any
-    createdAt: now                            // always set for MTD reporting
+  const state = {
+    currency: navigator.language ? new Intl.NumberFormat(navigator.language, { style: 'currency', currency: guessCurrency() }) : null,
+    installPrompt: null,
+    db: null,
+    budgets: [], // {id, category, limit}
+    transactions: [], // {id, type, date, category, amount, note}
   };
-  expenses.push(exp);
-  saveExpensesToStore();
-  renderExpensesList?.();                     // if you have a list renderer
-  recomputeDashboard();                       // <— updates tiles + chart to MTD
-}
 
-// Example: patch your existing save handler to call addExpense(...)
-function onSaveExpenseClick(){
-  // wire to your form inputs
-  const name = document.getElementById('expenseName')?.value || '';
-  const category = document.getElementById('expenseCategory')?.value || '';
-  const amount = document.getElementById('expenseAmount')?.value || 0;
-  const frequency = document.getElementById('expenseFrequency')?.value || 'oneoff';
-  const dateInput = document.getElementById('expenseDate')?.value; // "Due/Date" field
-  const dateISO = dateInput ? new Date(dateInput).toISOString() : null;
-  addExpense({ name, category, amount, frequency, dateISO });
-}
-
-// --- MTD/Recurring computations ---
-function incomeMTD(){
-  return (incomes || [])
-    .filter(i => isISOInThisMonth(i?.date || i?.createdAt))
-    .reduce((s,i)=> s + (Number(i.amount)||0), 0);
-}
-function spentMTD(){
-  return (expenses || [])
-    .filter(e => isISOInThisMonth(e?.date || e?.createdAt))
-    .reduce((s,e)=> s + (Number(e.amount)||0), 0);
-}
-function recurringMonthlyTotal(){
-  return (expenses || [])
-    .filter(e => e.frequency === 'monthly')
-    .reduce((s,e)=> s + (Number(e.amount)||0), 0);
-}
-
-// --- Dashboard + Chart update (MTD by default) ---
-function setCurrency(selOrEl, val){
-  const el = typeof selOrEl === 'string' ? document.querySelector(selOrEl) : selOrEl;
-  if (el) el.textContent = `$${(Number(val)||0).toFixed(2)}`;
-}
-
-function recomputeDashboard(view='mtd'){
-  const inc = incomeMTD();
-  const mtd = spentMTD();
-  const recurring = recurringMonthlyTotal();
-  const expToShow = view === 'recurring' ? recurring : mtd;
-
-  // Update tiles (adjust selectors to yours)
-  setCurrency('#monthlyIncome', inc);         // label now means "Income MTD"
-  setCurrency('#monthlyExpenses', expToShow); // label becomes "Spent this month (MTD)" or "Recurring bills"
-  setCurrency('#netAmount', inc - expToShow);
-
-  // Optional footnote about recurring when in MTD view
-  const note = document.getElementById('recurringBillsNote');
-  if (note) note.textContent = view === 'mtd' ? `Recurring bills this month: $${recurring.toFixed(2)}` : '';
-
-  // Update chart
-  if (window.summaryChart) {
-    window.summaryChart.data.datasets[0].data = [inc, expToShow, inc - expToShow];
-    window.summaryChart.update();
-  }
-}
-
-// --- View toggle (MTD vs Recurring) — injected if not present ---
-(function ensureViewToggle(){
-  let select = document.getElementById('chartView');
-  if (!select){
-    const container = document.querySelector('#dashboardControls') || document.querySelector('#dashboard') || document.body;
-    const wrap = document.createElement('div');
-    wrap.style.margin = '8px 0';
-    wrap.innerHTML = `
-      <label style="display:flex;gap:.5rem;align-items:center;font-size:.9rem">
-        View:
-        <select id="chartView">
-          <option value="mtd" selected>MTD</option>
-          <option value="recurring">Recurring</option>
-        </select>
-      </label>`;
-    container.prepend(wrap);
-    select = wrap.querySelector('#chartView');
-  }
-  select.addEventListener('change', e => recomputeDashboard(e.target.value));
-})();
-
-// --- Initialize chart reference if you haven't already ---
-(function ensureChartRef(){
-  const canvas = document.getElementById('summaryChart');
-  if (!canvas || window.summaryChart) return;
-  try {
-    window.summaryChart = new Chart(canvas.getContext('2d'), {
-      type: 'bar',
-      data: { labels: ['Income','Expenses','Net'], datasets: [{ label: 'This Month', data: [0,0,0] }] },
-      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, animation: false }
-    });
-  } catch (_) { /* Chart.js not loaded here — safe no-op */ }
-})();
-
-// Kick everything once on load
-document.addEventListener('DOMContentLoaded', () => recomputeDashboard('mtd'));
-/* ===== End v1.1 patch ===== */
-/* ===== v1.2: scroll + button reliability ===== */
-
-// Never let an old CSS toggle lock the page
-(function unlockScroll() {
-  document.documentElement.style.overflow = 'auto';
-  document.body.style.overflow = 'auto';
-})();
-
-// Attach handlers once DOM is ready, and only once.
-function ready(fn){ 
-  if (document.readyState !== 'loading') fn(); 
-  else document.addEventListener('DOMContentLoaded', fn, { once: true });
-}
-
-ready(() => {
-  // 1) Prevent any form from reloading the page on submit
-  document.querySelectorAll('form').forEach(f => {
-    if (!f.dataset.nosubmit) {
-      f.addEventListener('submit', (e) => e.preventDefault());
-      f.dataset.nosubmit = '1';
-    }
-  });
-
-  // 2) Wire Save Expense button once
-  const btn = document.getElementById('saveExpenseBtn');
-  if (btn && !btn.dataset.bound) {
-    btn.type = 'button'; // stop implicit submit
-    btn.addEventListener('click', onSaveExpenseClick);
-    btn.dataset.bound = '1';
+  function guessCurrency(){
+    try{
+      const region = Intl.DateTimeFormat().resolvedOptions().locale.split('-')[1] || 'US';
+      const map = { US:'USD', GB:'GBP', AU:'AUD', CA:'CAD', EU:'EUR', DE:'EUR', FR:'EUR', IN:'INR', JP:'JPY' };
+      return map[region] || 'USD';
+    }catch{ return 'USD'; }
   }
 
-  // 3) Tab/nav buttons (if you have them)
-  document.querySelectorAll('[data-nav-target]').forEach(el => {
-    if (!el.dataset.bound) {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        const target = el.dataset.navTarget; // e.g., "dashboard" | "expenses" | ...
-        if (typeof switchTab === 'function') switchTab(target);
-      }, { passive: true });
-      el.dataset.bound = '1';
-    }
-  });
-
-  // 4) Defensive: remove any invisible full-page overlays that could eat taps
-  document.querySelectorAll('.overlay,.scrim,.backdrop').forEach(el => {
-    const cs = getComputedStyle(el);
-    if (cs.display === 'none' || cs.opacity === '0') el.remove();
-  });
-
-  // 5) Rekick dashboard once everything is attached
-  try { recomputeDashboard?.(document.getElementById('chartView')?.value || 'mtd'); } catch {}
-});
-/* ===== v1.4.2 — Restore classic text UI + reliable clicks (append) ===== */
-(function () {
-  if (window.__BB_CLASSIC_TEXT_PATCH__) return;
-  window.__BB_CLASSIC_TEXT_PATCH__ = true;
-
-  const $  = (s) => document.querySelector(s);
-  const $$ = (s) => Array.from(document.querySelectorAll(s));
-  const n  = (v, d=0) => Number(v ?? d) || d;
-
-  // Prevent silent form reloads that "kill" buttons
-  function hardenForms() {
-    document.querySelectorAll('form').forEach(f => {
-      if (!f.dataset.nosubmit) {
-        f.addEventListener('submit', e => e.preventDefault());
-        f.dataset.nosubmit = '1';
-      }
-    });
-  }
-
-  /* --------- WRAPPERS (use existing app functions if present) --------- */
-  function saveExpenseSafe() {
-    if (typeof saveExpense === 'function') return saveExpense();
-    if (typeof onSaveExpenseClick === 'function') return onSaveExpenseClick();
-
-    // Fallback minimal save (IDs from your UI)
-    const name = $('#expenseName')?.value || '';
-    const amount = n($('#expenseAmount')?.value);
-    if (!name || !amount) { alert('Enter a name and amount.'); return; }
-    const category  = $('#expenseCategory')?.value || '';
-    const frequency = $('#expenseFrequency')?.value || 'oneoff';
-    const dval      = $('#expenseDate')?.value;
-    const dateISO   = dval ? new Date(dval).toISOString() : null;
-
-    const key = 'expenses';
-    const items = JSON.parse(localStorage.getItem(key) || '[]');
-    items.push({
-      id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now() + Math.random()),
-      name, category, amount, frequency, date: dateISO, createdAt: new Date().toISOString()
-    });
-    localStorage.setItem(key, JSON.stringify(items));
-
-    try { renderExpenses?.(); } catch {}
-    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
-
-    ['expenseName','expenseCategory','expenseAmount','expenseDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
-    const f = $('#expenseFrequency'); if (f) f.value = 'oneoff';
-  }
-
-  function saveIncomeSafe() {
-    if (typeof saveIncome === 'function') return saveIncome();
-    const key = 'incomes';
-    const items = JSON.parse(localStorage.getItem(key) || '[]');
-    const name = $('#incomeName')?.value || 'Income';
-    const amount = n($('#incomeAmount')?.value);
-    const dval = $('#incomeDate')?.value;
-    const dateISO = dval ? new Date(dval).toISOString() : new Date().toISOString();
-    if (!amount) { alert('Enter income amount'); return; }
-    items.push({ id:String(Date.now()+Math.random()), name, amount, date:dateISO, createdAt:dateISO });
-    localStorage.setItem(key, JSON.stringify(items));
-    try { renderIncome?.(); } catch {}
-    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
-    ['incomeName','incomeAmount','incomeDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
-  }
-
-  function deleteExpenseSafe(id) {
-    if (typeof deleteExpense === 'function') return deleteExpense(id);
-    const key = 'expenses';
-    let items = JSON.parse(localStorage.getItem(key) || '[]');
-    items = items.filter(e => String(e.id) !== String(id));
-    localStorage.setItem(key, JSON.stringify(items));
-    try { renderExpenses?.(); } catch {}
-    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
-  }
-
-  function exportJSONSafe() {
-    const blob = new Blob([JSON.stringify({
-      expenses: JSON.parse(localStorage.getItem('expenses') || '[]'),
-      incomes : JSON.parse(localStorage.getItem('incomes')  || '[]')
-    }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'budget-buddy-data.json';
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-  }
-
-  function clearAllSafe() {
-    if (!confirm('Delete ALL expenses and incomes?')) return;
-    localStorage.setItem('expenses','[]'); localStorage.setItem('incomes','[]');
-    try { renderExpenses?.(); renderIncome?.(); } catch {}
-    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
-  }
-
-  /* --------- RESTORE THE CLASSIC TEXT UI (tabs, buttons, deletes) --------- */
-  function restoreClassicTextUI() {
-    // Tabs: text labels exactly like your screenshots
-    const labels = { dashboard: 'Dashboard', expenses: 'Expenses', income: 'Income', history: 'History' };
-    document.querySelectorAll('.tab[data-tab]').forEach(tab => {
-      const k = tab.dataset.tab; if (labels[k]) tab.textContent = labels[k];
-      tab.classList.remove('btn-emoji'); // in case previous patch added it
-    });
-
-    // Primary buttons text
-    const map = [
-      ['#saveExpenseBtn','Save Expense'],
-      ['#clearExpenseBtn','Clear'],
-      ['#saveIncomeBtn','Save Income'],
-      ['#exportBtn','Export JSON'],
-      ['#clearAllBtn','Clear All']
-    ];
-    map.forEach(([sel,txt]) => {
-      const el = $(sel); if (!el) return;
-      el.textContent = txt; el.classList.remove('btn-emoji'); // normalize size
-    });
-
-    // Delete buttons in expense rows → round “×”
-    function restyleDeletes(root=document) {
-      root.querySelectorAll('[data-del], .del').forEach(btn => {
-        const id = btn.getAttribute('data-del') || btn.dataset.id;
-        btn.textContent = '×';
-        btn.classList.add('del-circle');
-        btn.classList.remove('btn-emoji','btn-trash');
-        if (!btn.dataset.id && id) btn.dataset.id = id;
-        btn.dataset.action = 'delete-expense';
+  /* ---------- IndexedDB Helper ---------- */
+  const idb = {
+    open(name='ledgerly', version=1){
+      return new Promise((res, rej) => {
+        const req = indexedDB.open(name, version);
+        req.onupgradeneeded = (e) => {
+          const db = req.result;
+          if(!db.objectStoreNames.contains('tx')) db.createObjectStore('tx', { keyPath:'id', autoIncrement:true }).createIndex('date', 'date');
+          if(!db.objectStoreNames.contains('budget')) db.createObjectStore('budget', { keyPath:'id', autoIncrement:true }).createIndex('category', 'category', { unique:true });
+          if(!db.objectStoreNames.contains('meta')) db.createObjectStore('meta', { keyPath:'k' });
+        };
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
       });
-    }
-    restyleDeletes();
+    },
+    tx(db, store, mode='readonly'){ return db.transaction(store, mode).objectStore(store); },
+    all(db, store){ return new Promise((res, rej) => {
+      const os = idb.tx(db, store); const out = [];
+      os.openCursor().onsuccess = e => {
+        const c = e.target.result; if(!c) return res(out);
+        out.push(c.value); c.continue();
+      };
+      os.transaction.onerror = () => rej(os.transaction.error);
+    });},
+    add(db, store, value){ return new Promise((res, rej) => { const r=idb.tx(db,store,'readwrite').add(value); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);} ); },
+    put(db, store, value){ return new Promise((res, rej) => { const r=idb.tx(db,store,'readwrite').put(value); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);} ); },
+    get(db, store, id){ return new Promise((res, rej) => { const r=idb.tx(db,store).get(id); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);} ); },
+    delete(db, store, id){ return new Promise((res, rej) => { const r=idb.tx(db,store,'readwrite').delete(id); r.onsuccess=()=>res(true); r.onerror=()=>rej(r.error);} ); },
+    clear(db, store){ return new Promise((res, rej)=>{ const r=idb.tx(db,store,'readwrite').clear(); r.onsuccess=()=>res(true); r.onerror=()=>rej(r.error);} ); }
+  };
 
-    // Re-apply delete styling when list re-renders
-    const list = $('#expensesList');
-    if (list && !list.__bbClassicObs) {
-      const mo = new MutationObserver(() => restyleDeletes(list));
-      mo.observe(list, { childList: true, subtree: true });
-      list.__bbClassicObs = mo;
-    }
-  }
+  /* ---------- Utilities ---------- */
+  const fmtMoney = n => (state.currency || new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'})).format(+n || 0);
+  const todayStr = () => new Date().toISOString().slice(0,10);
+  const parseAmount = s => Math.round(parseFloat(s || '0') * 100) / 100;
 
-  /* --------- ONE DELEGATED CLICK HANDLER (never misses) --------- */
-  function attachDelegation() {
-    if (document.__bbClassicDelegation) return;
-    document.__bbClassicDelegation = true;
-
-    document.addEventListener('click', (e) => {
-      const t = e.target.closest('[data-action], .tab, [data-del], .del, #saveExpenseBtn, #clearExpenseBtn, #saveIncomeBtn, #exportBtn, #clearAllBtn');
-      if (!t) return;
-
-      let action = t.dataset.action;
-      if (!action) {
-        if (t.matches('.tab')) action = 'switch-tab';
-        else if (t.matches('[data-del], .del')) action = 'delete-expense';
-        else if (t.id === 'saveExpenseBtn') action = 'save-expense';
-        else if (t.id === 'clearExpenseBtn') action = 'clear-expense';
-        else if (t.id === 'saveIncomeBtn') action = 'save-income';
-        else if (t.id === 'exportBtn') action = 'export-json';
-        else if (t.id === 'clearAllBtn') action = 'clear-all';
-      }
-
-      switch (action) {
-        case 'save-expense':  e.preventDefault(); saveExpenseSafe(); break;
-        case 'clear-expense': e.preventDefault(); ['expenseName','expenseCategory','expenseAmount','expenseDate'].forEach(id => { const el=$('#'+id); if (el) el.value=''; }); const f=$('#expenseFrequency'); if (f) f.value='oneoff'; break;
-        case 'save-income':   e.preventDefault(); saveIncomeSafe(); break;
-        case 'export-json':   e.preventDefault(); exportJSONSafe(); break;
-        case 'clear-all':     e.preventDefault(); clearAllSafe(); break;
-        case 'switch-tab':    e.preventDefault(); if (typeof showTab === 'function') showTab(t.dataset.tab); else {
-                                document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x===t));
-                                document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active', p.id === `page-${t.dataset.tab}`));
-                                window.scrollTo({ top: 0, behavior: 'instant' });
-                              } break;
-        case 'delete-expense':
-          e.preventDefault();
-          const id = t.getAttribute('data-del') || t.dataset.id || t.value;
-          if (id) deleteExpenseSafe(id);
-          break;
-        default: break;
-      }
-    }, { passive: false });
-  }
-
-  function kickTiles() {
-    // Make sure the dashboard shows MTD math
-    try { recomputeDashboard?.('mtd'); } catch {}
-    try { updateDashboard?.(); } catch {}
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    // unlock scroll just in case
-    document.documentElement.style.overflow = 'auto';
-    document.body.style.overflow = 'auto';
-
-    hardenForms();
-    attachDelegation();
-    restoreClassicTextUI();
-    kickTiles();
-
-    // Run again after first render waves
-    setTimeout(restoreClassicTextUI, 200);
-    setTimeout(kickTiles, 250);
-    setTimeout(restoreClassicTextUI, 800);
+  /* ---------- Boot ---------- */
+  document.addEventListener('DOMContentLoaded', async () => {
+    byId('year').textContent = new Date().getFullYear();
+    await initDB();
+    await loadAll();
+    renderAll();
+    wireUI();
+    registerSW();
+    setupInstall();
+    maybeShowIosTip();
   });
+
+  async function initDB(){
+    state.db = await idb.open('ledgerly', 1);
+  }
+
+  async function loadAll(){
+    [state.transactions, state.budgets] = await Promise.all([
+      idb.all(state.db, 'tx'),
+      idb.all(state.db, 'budget')
+    ]);
+  }
+
+  function renderAll(){
+    fillCategoryFilters();
+    renderKPIs();
+    renderBudgets();
+    renderTransactions();
+    drawChart();
+  }
+
+  /* ---------- UI Wiring ---------- */
+  function wireUI(){
+    // Add/Edit transaction dialog
+    const txDialog = byId('txDialog');
+    const budgetDialog = byId('budgetDialog');
+
+    byId('addBtn').addEventListener('click', () => openTxDialog());
+    byId('closeTxDialog').addEventListener('click', () => txDialog.close());
+    byId('cancelTx').addEventListener('click', () => txDialog.close());
+
+    byId('addBudgetBtn').addEventListener('click', () => openBudgetDialog());
+    byId('closeBudgetDialog').addEventListener('click', () => budgetDialog.close());
+    byId('cancelBudget').addEventListener('click', () => budgetDialog.close());
+
+    byId('txForm').addEventListener('submit', onSaveTx);
+    byId('budgetForm').addEventListener('submit', onSaveBudget);
+
+    // Filters
+    byId('filterForm').addEventListener('input', debounce(renderTransactions, 100));
+    byId('clearFilters').addEventListener('click', (e)=>{
+      e.preventDefault(); byId('filterForm').reset(); renderTransactions();
+    });
+
+    // Export/Import
+    byId('exportBtn').addEventListener('click', onExport);
+    byId('importFile').addEventListener('change', onImport);
+
+    // iOS tip close
+    byId('closeIosTip').addEventListener('click', ()=> byId('iosTip').hidden = true);
+
+    // Close dialogs with Escape keeping focus safety
+    $$('dialog').forEach(d => d.addEventListener('cancel', e => { e.preventDefault(); d.close(); }));
+  }
+
+  function openTxDialog(tx=null){
+    const d = byId('txDialog');
+    byId('txDialogTitle').textContent = tx ? 'Edit transaction' : 'Add transaction';
+    byId('txType').value = tx?.type || 'expense';
+    byId('txDate').value = tx?.date || todayStr();
+    byId('txCategory').value = tx?.category || '';
+    byId('txAmount').value = tx?.amount?.toFixed(2) || '';
+    byId('txNote').value = tx?.note || '';
+    byId('txId').value = tx?.id || '';
+    d.showModal();
+    byId('txType').focus();
+  }
+
+  function openBudgetDialog(b=null){
+    const d = byId('budgetDialog');
+    byId('budgetDialogTitle').textContent = b ? 'Edit budget' : 'Add budget';
+    byId('budgetCategory').value = b?.category || '';
+    byId('budgetLimit').value = b?.limit?.toFixed(2) || '';
+    byId('budgetId').value = b?.id || '';
+    d.showModal();
+    byId('budgetCategory').focus();
+  }
+
+  /* ---------- Transactions ---------- */
+  async function onSaveTx(e){
+    e.preventDefault();
+    const tx = {
+      id: byId('txId').value ? Number(byId('txId').value) : undefined,
+      type: byId('txType').value,
+      date: byId('txDate').value,
+      category: byId('txCategory').value.trim(),
+      amount: parseAmount(byId('txAmount').value) * (byId('txType').value === 'expense' ? -1 : 1),
+      note: byId('txNote').value.trim()
+    };
+    if(!tx.date || !tx.category || !tx.amount){ alert('Please fill required fields.'); return; }
+
+    if(tx.id){
+      await idb.put(state.db, 'tx', tx);
+      const idx = state.transactions.findIndex(t => t.id === tx.id);
+      state.transactions[idx] = tx;
+    } else {
+      tx.id = await idb.add(state.db, 'tx', tx);
+      state.transactions.push(tx);
+    }
+    byId('txDialog').close();
+    renderAll();
+  }
+
+  function filteredTx(){
+    const f = {
+      from: byId('fromDate').value,
+      to: byId('toDate').value,
+      type: byId('typeFilter').value,
+      category: byId('categoryFilter').value,
+      q: byId('searchInput').value.toLowerCase().trim(),
+      sort: byId('sortBy').value
+    };
+    let list = [...state.transactions];
+    if(f.from) list = list.filter(t => t.date >= f.from);
+    if(f.to) list = list.filter(t => t.date <= f.to);
+    if(f.type) list = list.filter(t => t.type === f.type);
+    if(f.category) list = list.filter(t => t.category === f.category);
+    if(f.q) list = list.filter(t =>
+      t.note.toLowerCase().includes(f.q) || t.category.toLowerCase().includes(f.q) || Math.abs(t.amount).toString().includes(f.q)
+    );
+
+    const sorters = {
+      'date-desc': (a,b)=> b.date.localeCompare(a.date),
+      'date-asc': (a,b)=> a.date.localeCompare(b.date),
+      'amount-desc': (a,b)=> Math.abs(b.amount) - Math.abs(a.amount),
+      'amount-asc': (a,b)=> Math.abs(a.amount) - Math.abs(b.amount),
+    };
+    list.sort(sorters[f.sort] || sorters['date-desc']);
+    return list;
+  }
+
+  function renderTransactions(){
+    const tbody = byId('txTableBody');
+    tbody.innerHTML = '';
+    const rows = filteredTx();
+    byId('txCount').textContent = `${rows.length} item${rows.length!==1?'s':''}`;
+
+    const frag = document.createDocumentFragment();
+    rows.forEach(t => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${t.date}</td>
+        <td>${t.type === 'income' ? 'Income' : 'Expense'}</td>
+        <td>${escapeHtml(t.category)}</td>
+        <td class="right amount ${t.amount<0?'neg':'pos'}">${fmtMoney(Math.abs(t.amount))}</td>
+        <td>${escapeHtml(t.note || '')}</td>
+        <td>
+          <button class="icon-btn" aria-label="Edit" data-edit="${t.id}">✎</button>
+          <button class="icon-btn" aria-label="Delete" data-del="${t.id}">🗑</button>
+        </td>`;
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+
+    tbody.onclick = async (e) => {
+      const editId = e.target.getAttribute('data-edit');
+      const delId = e.target.getAttribute('data-del');
+      if(editId){
+        const tx = state.transactions.find(x => x.id === Number(editId));
+        openTxDialog(tx);
+      }
+      if(delId){
+        if(confirm('Delete this transaction?')){
+          await idb.delete(state.db, 'tx', Number(delId));
+          state.transactions = state.transactions.filter(x => x.id !== Number(delId));
+          renderAll();
+        }
+      }
+    };
+  }
+
+  /* ---------- Budgets ---------- */
+  async function onSaveBudget(e){
+    e.preventDefault();
+    const rec = {
+      id: byId('budgetId').value ? Number(byId('budgetId').value) : undefined,
+      category: byId('budgetCategory').value.trim(),
+      limit: parseAmount(byId('budgetLimit').value)
+    };
+    if(!rec.category){ alert('Category required.'); return; }
+    if(rec.id){
+      await idb.put(state.db, 'budget', rec);
+      const i = state.budgets.findIndex(b => b.id === rec.id);
+      state.budgets[i] = rec;
+    } else {
+      try{
+        rec.id = await idb.add(state.db, 'budget', rec);
+        state.budgets.push(rec);
+      }catch(err){
+        alert('Budget category must be unique.');
+      }
+    }
+    byId('budgetDialog').close();
+    renderAll();
+  }
+
+  function renderBudgets(){
+    const ul = byId('budgetList'); ul.innerHTML = '';
+    const monthKey = new Date().toISOString().slice(0,7); // YYYY-MM
+    const frag = document.createDocumentFragment();
+
+    state.budgets.forEach(b => {
+      const spent = state.transactions
+        .filter(t => t.type==='expense' && t.category===b.category && t.date.startsWith(monthKey))
+        .reduce((s,t)=> s + Math.abs(t.amount), 0);
+
+      const left = Math.max(0, b.limit - spent);
+      const pct = b.limit ? Math.min(100, Math.round((spent / b.limit) * 100)) : 0;
+
+      const li = document.createElement('li');
+      li.className = 'budget-item';
+      li.innerHTML = `
+        <div>
+          <strong>${escapeHtml(b.category)}</strong>
+          <div class="hint">Spent ${fmtMoney(spent)} of ${fmtMoney(b.limit)} — Left ${fmtMoney(left)}</div>
+          <div class="progress" aria-label="Budget progress for ${escapeHtml(b.category)}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}">
+            <span style="width:${pct}%"></span>
+          </div>
+        </div>
+        <div>
+          <button class="btn small" data-edit-budget="${b.id}">Edit</button>
+          <button class="btn small ghost" data-del-budget="${b.id}">Delete</button>
+        </div>
+      `;
+      frag.appendChild(li);
+    });
+    ul.appendChild(frag);
+
+    ul.onclick = async (e)=>{
+      const eb = e.target.getAttribute('data-edit-budget');
+      const db = e.target.getAttribute('data-del-budget');
+      if(eb){
+        const rec = state.budgets.find(x => x.id === Number(eb));
+        openBudgetDialog(rec);
+      }
+      if(db){
+        if(confirm('Delete this budget?')){
+          await idb.delete(state.db, 'budget', Number(db));
+          state.budgets = state.budgets.filter(x => x.id !== Number(db));
+          renderAll();
+        }
+      }
+    };
+  }
+
+  function fillCategoryFilters(){
+    const set = new Set(state.transactions.map(t => t.category).concat(state.budgets.map(b=>b.category)).filter(Boolean));
+    const options = Array.from(set).sort().map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    byId('categoryFilter').innerHTML = `<option value="">All</option>${options}`;
+    byId('categoryList').innerHTML = options;
+  }
+
+  /* ---------- KPIs ---------- */
+  function renderKPIs(){
+    const income = state.transactions.filter(t => t.amount > 0).reduce((s,t)=> s + t.amount, 0);
+    const expense = state.transactions.filter(t => t.amount < 0).reduce((s,t)=> s + Math.abs(t.amount), 0);
+    const balance = income - expense;
+    const monthKey = new Date().toISOString().slice(0,7);
+    const monthBudget = state.budgets.reduce((s,b)=> s + b.limit, 0);
+    const monthSpent = state.transactions.filter(t => t.type==='expense' && t.date.startsWith(monthKey))
+      .reduce((s,t)=> s + Math.abs(t.amount), 0);
+    const budgetLeft = Math.max(0, monthBudget - monthSpent);
+
+    byId('kpiIncome').textContent = fmtMoney(income);
+    byId('kpiExpense').textContent = fmtMoney(expense);
+    byId('kpiBalance').textContent = fmtMoney(balance);
+    byId('kpiBudgetLeft').textContent = fmtMoney(budgetLeft);
+  }
+
+  /* ---------- Chart (30-day running balance) ---------- */
+  function drawChart(){
+    const canvas = byId('trendChart');
+    const ctx = canvas.getContext('2d');
+    const days = 30;
+    const now = new Date();
+    const labels = [];
+    const points = [];
+    for(let i=days-1;i>=0;i--){
+      const d = new Date(now); d.setDate(now.getDate()-i);
+      const key = d.toISOString().slice(0,10);
+      labels.push(key.slice(5));
+      const daySum = state.transactions.filter(t => t.date === key).reduce((s,t)=> s + t.amount, 0);
+      points.push(daySum);
+    }
+    // cumulative
+    let cum = 0; const series = points.map(v => (cum += v));
+
+    // clear
+    const DPR = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || canvas.parentElement.clientWidth - 32;
+    const h = canvas.getAttribute('height');
+    canvas.width = w * DPR; canvas.height = h * DPR; canvas.style.width = w+'px';
+    ctx.scale(DPR,DPR);
+    ctx.clearRect(0,0,w,h);
+
+    // axes
+    ctx.strokeStyle = '#ffffff25';
+    ctx.lineWidth = 1;
+    for(let i=0;i<5;i++){
+      const y = (h/4)*i;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    }
+
+    // scale
+    const min = Math.min(0, Math.min(...series));
+    const max = Math.max(0, Math.max(...series), 1);
+    const range = max - min || 1;
+    const xStep = w / (days-1);
+
+    // gradient line
+    const grad = ctx.createLinearGradient(0,0,w,0);
+    grad.addColorStop(0, '#22d3ee');
+    grad.addColorStop(1, '#0ea5e9');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    series.forEach((v,i)=>{
+      const x = i*xStep;
+      const y = h - ((v - min)/range)*h;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    // zero line
+    const zeroY = h - ((0 - min)/range)*h;
+    ctx.strokeStyle = '#ef4444aa';
+    ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(0,zeroY); ctx.lineTo(w,zeroY); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  /* ---------- Export / Import ---------- */
+  function onExport(){
+    const data = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      currency: (state.currency && state.currency.resolvedOptions ? state.currency.resolvedOptions().currency : 'USD'),
+      budgets: state.budgets,
+      transactions: state.transactions
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `ledgerly-backup-${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  async function onImport(e){
+    const file = e.target.files?.[0];
+    if(!file) return;
+    const text = await file.text();
+    try{
+      const data = JSON.parse(text);
+      if(!Array.isArray(data.transactions) || !Array.isArray(data.budgets)) throw new Error('Invalid file');
+      // wipe + restore
+      await idb.clear(state.db, 'tx');
+      await idb.clear(state.db, 'budget');
+      state.transactions = [];
+      state.budgets = [];
+      for(const b of data.budgets){
+        const rec = { category: String(b.category), limit: Number(b.limit)||0 };
+        rec.id = await idb.add(state.db, 'budget', rec);
+        state.budgets.push(rec);
+      }
+      for(const t of data.transactions){
+        const rec = {
+          type: t.amount >= 0 ? 'income' : 'expense',
+          date: t.date,
+          category: String(t.category),
+          amount: Number(t.amount),
+          note: String(t.note||'')
+        };
+        rec.id = await idb.add(state.db, 'tx', rec);
+        state.transactions.push(rec);
+      }
+      renderAll(); alert('Import complete ✔️');
+    }catch(err){
+      alert('Import failed. File not recognized.');
+    } finally {
+      e.target.value = '';
+    }
+  }
+
+  /* ---------- Install / PWA ---------- */
+  function setupInstall(){
+    window.addEventListener('beforeinstallprompt', (e)=>{
+      e.preventDefault();
+      state.installPrompt = e;
+      byId('installBtn').hidden = false;
+    });
+    byId('installBtn').addEventListener('click', async ()=>{
+      if(!state.installPrompt) return;
+      const evt = state.installPrompt;
+      state.installPrompt = null;
+      byId('installBtn').hidden = true;
+      await evt.prompt();
+    });
+  }
+
+  function maybeShowIosTip(){
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if(isIos && !isStandalone){
+      // small delay to not be annoying
+      setTimeout(()=>{ byId('iosTip').hidden = false; }, 800);
+    }
+  }
+
+  async function registerSW(){
+    if('serviceWorker' in navigator){
+      try{
+        await navigator.serviceWorker.register('sw.js');
+      }catch(e){ /* no-op */ }
+    }
+  }
+
+  /* ---------- Helpers ---------- */
+  function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+  function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
 })();
