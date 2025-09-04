@@ -27,14 +27,13 @@
   <link rel="preload" href="styles.css" as="style">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="">
-<header class="app-header">
+<body>
+<header class="app-header" role="banner">
   <div class="brand">
     <span class="logo" aria-hidden="true">∑</span>
     <h1 id="appTitle">Ledgerly</h1>
   </div>
-
-  <div class="header-actions">
+  <div class="header-actions" role="toolbar" aria-label="Quick actions">
     <button id="settingsBtn" class="btn ghost" aria-haspopup="dialog" aria-controls="settingsDialog">Settings</button>
     <button id="addBtn" class="btn primary" aria-haspopup="dialog" aria-controls="txDialog">+ Add</button>
     <button id="exportBtn" class="btn ghost" aria-label="Export data">Export</button>
@@ -45,135 +44,160 @@
   </div>
 </header>
 
-<main id="main" class="container">
-  <!-- Overview / KPIs -->
-  <section aria-labelledby="summaryTitle" class="card summary">
-    <div class="between">
-      <h2 id="summaryTitle">Overview</h2>
-      <div class="hint" id="monthLabel"></div>
-    </div>
-    <div class="kpis" role="list">
-      <div class="kpi" role="listitem">
-        <div class="kpi-label">Balance (All-time)</div>
-        <div class="kpi-value" id="kpiBalance">$0.00</div>
-      </div>
-      <div class="kpi" role="listitem">
-        <div class="kpi-label">This Month — Income</div>
-        <div class="kpi-value pos" id="kpiIncomeMonth">$0.00</div>
-      </div>
-      <div class="kpi" role="listitem">
-        <div class="kpi-label">This Month — Expenses</div>
-        <div class="kpi-value neg" id="kpiExpenseMonth">$0.00</div>
-      </div>
-      <div class="kpi" role="listitem">
-        <div class="kpi-label">Net This Month</div>
-        <div class="kpi-value" id="kpiNetMonth">$0.00</div>
-      </div>
-    </div>
+<!-- Main viewport: height-locked, each view scrolls inside -->
+<main id="viewport" class="viewport" role="main">
+  <!-- ===== Overview ===== -->
+  <section id="view-overview" class="view active" aria-labelledby="summaryTitle">
+    <div class="container">
+      <section class="card summary">
+        <div class="between">
+          <h2 id="summaryTitle">Overview</h2>
+          <div class="hint" id="monthLabel"></div>
+        </div>
 
-    <div class="charts">
-      <div class="chart-card">
-        <h3 class="chart-title">30-Day Running Balance</h3>
-        <canvas id="trendChart" height="120" aria-label="30-day running balance line chart" role="img"></canvas>
-      </div>
-      <div class="chart-card">
-        <h3 class="chart-title">This Month: Daily Expenses</h3>
-        <canvas id="expenseBarChart" height="120" aria-label="Daily expenses bar chart" role="img"></canvas>
-      </div>
-      <div class="chart-card">
-        <h3 class="chart-title">Month Budget Usage</h3>
-        <div class="donut-wrap">
-          <canvas id="budgetDonut" width="160" height="160" aria-label="Budget spent vs remaining donut" role="img"></canvas>
-          <div class="donut-center">
-            <div id="donutPct">0%</div>
-            <small id="donutCaption">Spent</small>
+        <div class="kpis" role="list">
+          <div class="kpi" role="listitem">
+            <div class="kpi-label">Balance (All-time)</div>
+            <div class="kpi-value" id="kpiBalance">$0.00</div>
+          </div>
+          <div class="kpi" role="listitem">
+            <div class="kpi-label">This Month — Income</div>
+            <div class="kpi-value pos" id="kpiIncomeMonth">$0.00</div>
+          </div>
+          <div class="kpi" role="listitem">
+            <div class="kpi-label">This Month — Expenses</div>
+            <div class="kpi-value neg" id="kpiExpenseMonth">$0.00</div>
+          </div>
+          <div class="kpi" role="listitem">
+            <div class="kpi-label">Net This Month</div>
+            <div class="kpi-value" id="kpiNetMonth">$0.00</div>
           </div>
         </div>
-      </div>
+
+        <div class="charts">
+          <div class="chart-card">
+            <h3 class="chart-title">30-Day Running Balance</h3>
+            <canvas id="trendChart" height="120" aria-label="30-day running balance line chart" role="img"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3 class="chart-title">This Month: Daily Expenses</h3>
+            <canvas id="expenseBarChart" height="120" aria-label="Daily expenses bar chart" role="img"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3 class="chart-title">Month Budget Usage</h3>
+            <div class="donut-wrap">
+              <canvas id="budgetDonut" width="160" height="160" aria-label="Budget spent vs remaining donut" role="img"></canvas>
+              <div class="donut-center">
+                <div id="donutPct">0%</div>
+                <small id="donutCaption">Spent</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card filters">
+        <h2 id="filterTitle">Filters</h2>
+        <form id="filterForm" class="grid" autocomplete="off">
+          <label>
+            <span>From</span>
+            <input type="date" id="fromDate">
+          </label>
+          <label>
+            <span>To</span>
+            <input type="date" id="toDate">
+          </label>
+          <label>
+            <span>Type</span>
+            <select id="typeFilter">
+              <option value="">All</option>
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+            </select>
+          </label>
+          <label>
+            <span>Category</span>
+            <select id="categoryFilter">
+              <option value="">All</option>
+            </select>
+          </label>
+          <label class="wide">
+            <span>Search</span>
+            <input type="search" id="searchInput" placeholder="Note, amount, category…">
+          </label>
+          <label>
+            <span>Sort</span>
+            <select id="sortBy">
+              <option value="date-desc">Date ↓</option>
+              <option value="date-asc">Date ↑</option>
+              <option value="amount-desc">Amount ↓</option>
+              <option value="amount-asc">Amount ↑</option>
+            </select>
+          </label>
+          <button class="btn" type="reset" id="clearFilters">Reset</button>
+        </form>
+      </section>
     </div>
   </section>
 
-  <!-- Filters -->
-  <section aria-labelledby="filterTitle" class="card filters">
-    <h2 id="filterTitle">Filters</h2>
-    <form id="filterForm" class="grid" autocomplete="off">
-      <label>
-        <span>From</span>
-        <input type="date" id="fromDate">
-      </label>
-      <label>
-        <span>To</span>
-        <input type="date" id="toDate">
-      </label>
-      <label>
-        <span>Type</span>
-        <select id="typeFilter">
-          <option value="">All</option>
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
-        </select>
-      </label>
-      <label>
-        <span>Category</span>
-        <select id="categoryFilter">
-          <option value="">All</option>
-        </select>
-      </label>
-      <label class="wide">
-        <span>Search</span>
-        <input type="search" id="searchInput" placeholder="Note, amount, category…">
-      </label>
-      <label>
-        <span>Sort</span>
-        <select id="sortBy">
-          <option value="date-desc">Date ↓</option>
-          <option value="date-asc">Date ↑</option>
-          <option value="amount-desc">Amount ↓</option>
-          <option value="amount-asc">Amount ↑</option>
-        </select>
-      </label>
-      <button class="btn" type="reset" id="clearFilters">Reset</button>
-    </form>
-  </section>
-
-  <!-- Budgets -->
-  <section aria-labelledby="budgetsTitle" class="card budgets">
-    <div class="between">
-      <h2 id="budgetsTitle">Budgets</h2>
-      <button id="addBudgetBtn" class="btn small">+ Add Budget</button>
+  <!-- ===== Budgets ===== -->
+  <section id="view-budgets" class="view" aria-labelledby="budgetsTitle">
+    <div class="container">
+      <section class="card budgets">
+        <div class="between">
+          <h2 id="budgetsTitle">Budgets</h2>
+          <button id="addBudgetBtn" class="btn small">+ Add Budget</button>
+        </div>
+        <ul id="budgetList" class="budget-list" aria-live="polite"></ul>
+      </section>
     </div>
-    <ul id="budgetList" class="budget-list" aria-live="polite"></ul>
   </section>
 
-  <!-- Daily breakdown (current month) -->
-  <section aria-labelledby="dailyTitle" class="card">
-    <h2 id="dailyTitle">Day-by-Day (This Month)</h2>
-    <ul id="dailyList" class="daily-list" aria-live="polite"></ul>
-  </section>
-
-  <!-- Transactions -->
-  <section aria-labelledby="txTitle" class="card">
-    <div class="between">
-      <h2 id="txTitle">Transactions</h2>
-      <div class="hint" id="txCount">0 items</div>
+  <!-- ===== Transactions ===== -->
+  <section id="view-transactions" class="view" aria-labelledby="txTitle">
+    <div class="container">
+      <section class="card">
+        <div class="between">
+          <h2 id="txTitle">Transactions</h2>
+          <div class="hint" id="txCount">0 items</div>
+        </div>
+        <div class="table-wrapper">
+          <table class="table" aria-describedby="txTitle">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Type</th>
+                <th scope="col">Category</th>
+                <th scope="col" class="right">Amount</th>
+                <th scope="col">Note</th>
+                <th scope="col"><span class="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody id="txTableBody"></tbody>
+          </table>
+        </div>
+      </section>
     </div>
-    <div class="table-wrapper">
-      <table class="table" aria-describedby="txTitle">
-        <thead>
-          <tr>
-            <th scope="col">Date</th>
-            <th scope="col">Type</th>
-            <th scope="col">Category</th>
-            <th scope="col" class="right">Amount</th>
-            <th scope="col">Note</th>
-            <th scope="col"><span class="sr-only">Actions</span></th>
-          </tr>
-        </thead>
-        <tbody id="txTableBody"></tbody>
-      </table>
+  </section>
+
+  <!-- ===== Daily (this month) ===== -->
+  <section id="view-daily" class="view" aria-labelledby="dailyTitle">
+    <div class="container">
+      <section class="card">
+        <h2 id="dailyTitle">Day-by-Day (This Month)</h2>
+        <ul id="dailyList" class="daily-list" aria-live="polite"></ul>
+      </section>
     </div>
   </section>
 </main>
+
+<!-- Bottom tab bar -->
+<nav class="tabbar" role="navigation" aria-label="Bottom Tabs">
+  <button class="tab active" data-tab="overview" aria-controls="view-overview" aria-label="Overview">🏠<span>Overview</span></button>
+  <button class="tab" data-tab="budgets" aria-controls="view-budgets" aria-label="Budgets">🧭<span>Budgets</span></button>
+  <button class="tab" data-tab="transactions" aria-controls="view-transactions" aria-label="Transactions">📄<span>Transactions</span></button>
+  <button class="tab" data-tab="daily" aria-controls="view-daily" aria-label="Daily">📅<span>Daily</span></button>
+</nav>
 
 <!-- Dialog: Add/Edit Transaction -->
 <dialog id="txDialog" aria-labelledby="txDialogTitle">
@@ -267,7 +291,7 @@
       </label>
       <label>
         <span>Compact Mode</span>
-        <select id="l,setDensity">
+        <select id="setDensity">
           <option value="">Comfortable</option>
           <option value="dense">Compact</option>
         </select>
