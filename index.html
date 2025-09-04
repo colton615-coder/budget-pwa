@@ -1,156 +1,227 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Budget Buddy</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0f1115" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="./app.css" />
+  <title>Ledgerly — Budget & Expenses</title>
+  <meta name="description" content="Professional money, expenses, income and budget tracker. PWA. Offline-first." />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0f172a" />
+
+  <!-- iOS specific -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Ledgerly">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="mask-icon" href="icons/mask.svg" color="#0ea5e9">
+
+  <!-- Fonts (system stack for performance) -->
+  <link rel="preload" href="styles.css" as="style">
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Favicons (fallbacks) -->
+  <link rel="icon" sizes="48x48" href="icons/icon-48.png">
+  <link rel="icon" sizes="192x192" href="icons/icon-192.png">
+  <link rel="icon" sizes="512x512" href="icons/icon-512.png">
 </head>
 <body>
-  <!-- PATCH v1.2 — START MAIN -->
-  <main class="main-scroll">
-    <!-- PATCH v1.2 — DASHBOARD METRICS (PASTE/REPLACE HERE) -->
-    <section id="dashboard" class="card-grid">
-      <div class="card">
-        <div class="label">Income (MTD)</div>
-        <div id="monthlyIncome" class="value">$0.00</div>
-      </div>
+<header class="app-header">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">∑</span>
+    <h1 id="appTitle">Ledgerly</h1>
+  </div>
 
-      <div class="card">
-        <div class="label" data-expense-label>Spent this month (MTD)</div>
-        <div id="monthlyExpenses" class="value">$0.00</div>
-        <small id="recurringBillsNote" class="muted"></small>
-      </div>
+  <div class="header-actions">
+    <button id="addBtn" class="btn primary" aria-haspopup="dialog" aria-controls="txDialog">
+      + Add
+    </button>
+    <button id="exportBtn" class="btn ghost" aria-label="Export data">Export</button>
+    <label class="file-btn ghost">
+      <input id="importFile" type="file" accept="application/json" aria-label="Import data file">
+      Import
+    </label>
+    <button id="installBtn" class="btn install" hidden>Install</button>
+  </div>
+</header>
 
-      <div class="card">
-        <div class="label">Net (Income − Spend)</div>
-        <div id="netAmount" class="value">$0.00</div>
+<main id="main" class="container">
+  <!-- Summary -->
+  <section aria-labelledby="summaryTitle" class="card summary">
+    <h2 id="summaryTitle">Overview</h2>
+    <div class="kpis" role="list">
+      <div class="kpi" role="listitem">
+        <div class="kpi-label">Balance</div>
+        <div class="kpi-value" id="kpiBalance">$0.00</div>
       </div>
-    </section>
-  <header class="app-header">
-    <h1>Budget Buddy</h1>
-  </header>
-    <!-- PATCH v1.2 — VIEW TOGGLE + CHART (PASTE HERE) -->
-    <div id="dashboardControls"></div>
-    <div class="chart-wrap">
-      <canvas id="summaryChart" height="220"></canvas>
+      <div class="kpi" role="listitem">
+        <div class="kpi-label">Income</div>
+        <div class="kpi-value pos" id="kpiIncome">$0.00</div>
+      </div>
+      <div class="kpi" role="listitem">
+        <div class="kpi-label">Expenses</div>
+        <div class="kpi-value neg" id="kpiExpense">$0.00</div>
+      </div>
+      <div class="kpi" role="listitem">
+        <div class="kpi-label">Budget Left</div>
+        <div class="kpi-value" id="kpiBudgetLeft">$0.00</div>
+      </div>
     </div>
-  <main id="pages" class="pages">
-    <!-- DASHBOARD PAGE -->
-    <section id="page-dashboard" class="page active">
-      <div class="card metric">
-        <div class="metric-title">Monthly Income</div>
-        <div id="monthlyIncome" class="metric-value">$0.00</div>
-      </div>
-      <div class="card metric">
-        <div class="metric-title">Monthly Expenses</div>
-        <div id="monthlyExpenses" class="metric-value">$0.00</div>
-      </div>
-      <div class="card metric">
-        <div class="metric-title">Net (Income - Expenses)</div>
-        <div id="netAmount" class="metric-value positive">$0.00</div>
-      </div>
+    <canvas id="trendChart" height="100" aria-label="30-day cashflow chart" role="img"></canvas>
+  </section>
 
-      <div class="card chart-card">
-        <canvas id="summaryChart" height="220"></canvas>
-      </div>
-
-      <div class="card">
-        <div class="section-title">Upcoming (next 14 days)</div>
-        <div id="upcomingList" class="muted">Nothing due in the next 14 days</div>
-      </div>
-
-      <div class="card">
-        <div class="section-title">Budgets</div>
-        <button id="setBudgetBtn" class="btn small right-btn">Set budget</button>
-        <div id="budgetsList" class="muted" style="margin-top:10px;">—</div>
-      </div>
-    </section>
-
-    <!-- EXPENSES PAGE -->
-    <section id="page-expenses" class="page">
-      <div class="card">
-        <div class="section-title">Name</div>
-        <input id="expenseName" class="input" placeholder="Rent, Groceries, Netflix" />
-
-        <div class="section-title">Amount ($)</div>
-        <input id="expenseAmount" class="input" type="number" step="0.01" inputmode="decimal" placeholder="0.00" />
-
-        <div class="section-title">Category</div>
-        <input id="expenseCategory" class="input" placeholder="Housing, Food, Subscriptions" />
-
-        <div class="section-title">Cadence</div>
-        <select id="expenseFrequency" class="input">
-          <option value="oneoff" selected>oneoff</option>
-          <option value="monthly">monthly</option>
+  <!-- Filters -->
+  <section aria-labelledby="filterTitle" class="card filters">
+    <h2 id="filterTitle">Filters</h2>
+    <form id="filterForm" class="grid">
+      <label>
+        <span>From</span>
+        <input type="date" id="fromDate">
+      </label>
+      <label>
+        <span>To</span>
+        <input type="date" id="toDate">
+      </label>
+      <label>
+        <span>Type</span>
+        <select id="typeFilter">
+          <option value="">All</option>
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
         </select>
+      </label>
+      <label>
+        <span>Category</span>
+        <select id="categoryFilter">
+          <option value="">All</option>
+        </select>
+      </label>
+      <label class="wide">
+        <span>Search</span>
+        <input type="search" id="searchInput" placeholder="Note, amount, category…">
+      </label>
+      <label>
+        <span>Sort</span>
+        <select id="sortBy">
+          <option value="date-desc">Date ↓</option>
+          <option value="date-asc">Date ↑</option>
+          <option value="amount-desc">Amount ↓</option>
+          <option value="amount-asc">Amount ↑</option>
+        </select>
+      </label>
+      <button class="btn" type="reset" id="clearFilters">Reset</button>
+    </form>
+  </section>
 
-        <div class="section-title">Due / Date</div>
-        <input id="expenseDate" class="input" type="date" />
+  <!-- Budgets -->
+  <section aria-labelledby="budgetsTitle" class="card budgets">
+    <div class="between">
+      <h2 id="budgetsTitle">Budgets</h2>
+      <button id="addBudgetBtn" class="btn small">+ Add Budget</button>
+    </div>
+    <ul id="budgetList" class="budget-list" aria-live="polite"></ul>
+  </section>
 
-        <div class="quick-amounts">
-          <button class="chip" data-amount="25">$25</button>
-          <button class="chip" data-amount="50">$50</button>
-          <button class="chip" data-amount="100">$100</button>
-          <button class="chip" data-amount="250">$250</button>
-          <button class="chip" data-amount="500">$500</button>
-        </div>
+  <!-- Transactions -->
+  <section aria-labelledby="txTitle" class="card">
+    <div class="between">
+      <h2 id="txTitle">Transactions</h2>
+      <div class="hint" id="txCount">0 items</div>
+    </div>
+    <table class="table" aria-describedby="txTitle">
+      <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">Type</th>
+          <th scope="col">Category</th>
+          <th scope="col" class="right">Amount</th>
+          <th scope="col">Note</th>
+          <th scope="col"><span class="sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody id="txTableBody"></tbody>
+    </table>
+  </section>
+</main>
 
-        <div class="row">
-          <button id="saveExpenseBtn" class="btn primary">Save Expense</button>
-          <button id="clearExpenseBtn" class="btn">Clear</button>
-        </div>
-      </div>
+<!-- Dialog: Add/Edit Transaction -->
+<dialog id="txDialog" aria-labelledby="txDialogTitle">
+  <form id="txForm" method="dialog">
+    <header class="dialog-header">
+      <h3 id="txDialogTitle">Add transaction</h3>
+      <button class="icon-btn" id="closeTxDialog" aria-label="Close">✕</button>
+    </header>
+    <div class="grid">
+      <label>
+        <span>Type</span>
+        <select id="txType" required>
+          <option value="expense">Expense</option>
+          <option value="income">Income</option>
+        </select>
+      </label>
+      <label>
+        <span>Date</span>
+        <input id="txDate" type="date" required>
+      </label>
+      <label>
+        <span>Category</span>
+        <input id="txCategory" list="categoryList" required placeholder="e.g., Groceries">
+        <datalist id="categoryList"></datalist>
+      </label>
+      <label>
+        <span>Amount</span>
+        <input id="txAmount" type="number" inputmode="decimal" step="0.01" min="0" required placeholder="0.00">
+      </label>
+      <label class="wide">
+        <span>Note</span>
+        <input id="txNote" type="text" maxlength="140" placeholder="Optional memo">
+      </label>
+    </div>
+    <footer class="dialog-footer">
+      <button class="btn" value="cancel" type="button" id="cancelTx">Cancel</button>
+      <button class="btn primary" id="saveTx" type="submit">Save</button>
+    </footer>
+    <input type="hidden" id="txId">
+  </form>
+</dialog>
 
-      <div class="card">
-        <div class="section-title">Expenses</div>
-        <div id="expensesList" class="list"></div>
-      </div>
-    </section>
+<!-- Dialog: Add/Edit Budget -->
+<dialog id="budgetDialog" aria-labelledby="budgetDialogTitle">
+  <form id="budgetForm" method="dialog">
+    <header class="dialog-header">
+      <h3 id="budgetDialogTitle">Add budget</h3>
+      <button class="icon-btn" id="closeBudgetDialog" aria-label="Close">✕</button>
+    </header>
+    <div class="grid">
+      <label>
+        <span>Category</span>
+        <input id="budgetCategory" required placeholder="e.g., Groceries">
+      </label>
+      <label>
+        <span>Monthly Limit</span>
+        <input id="budgetLimit" type="number" inputmode="decimal" step="0.01" min="0" required placeholder="0.00">
+      </label>
+    </div>
+    <footer class="dialog-footer">
+      <button class="btn" value="cancel" type="button" id="cancelBudget">Cancel</button>
+      <button class="btn primary" id="saveBudget" type="submit">Save</button>
+    </footer>
+    <input type="hidden" id="budgetId">
+  </form>
+</dialog>
 
-    <!-- INCOME PAGE (placeholder for parity with original tabs) -->
-    <section id="page-income" class="page">
-      <div class="card">
-        <div class="section-title">Income (quick add)</div>
-        <div class="row">
-          <input id="incomeName" class="input" placeholder="Paycheck" />
-          <input id="incomeAmount" class="input" type="number" step="0.01" inputmode="decimal" placeholder="0.00" />
-          <input id="incomeDate" class="input" type="date" />
-          <button id="saveIncomeBtn" class="btn primary">Save Income</button>
-        </div>
-        <div class="list" id="incomeList"></div>
-      </div>
-    </section>
+<!-- A2HS tip for iOS -->
+<div id="iosTip" role="dialog" aria-live="polite" class="ios-tip" hidden>
+  <button class="icon-btn tip-close" id="closeIosTip" aria-label="Close">✕</button>
+  <p><strong>Add Ledgerly to Home Screen</strong><br>
+  Tap <span aria-hidden="true">▵</span> Share and choose <em>Add to Home Screen</em> for an app-like experience.</p>
+</div>
 
-    <!-- HISTORY PAGE (simple export/reset) -->
-    <section id="page-history" class="page">
-      <div class="card">
-        <div class="section-title">Data</div>
-        <div class="row">
-          <button id="exportBtn" class="btn">Export JSON</button>
-          <button id="clearAllBtn" class="btn danger">Clear ALL</button>
-        </div>
-      </div>
-    </section>
-    </main>
-  <!-- PATCH v1.2 — END MAIN -->
+<footer class="app-footer">
+  <small>© <span id="year"></span> Ledgerly. All data stays on your device.</small>
+</footer>
 
-  <!-- your bottom navbar/footer goes here (outside <main>) -->
-
-  <nav class="tabbar">
-    <button class="tab active" data-tab="dashboard">Dashboard</button>
-    <button class="tab" data-tab="expenses">Expenses</button>
-    <button class="tab" data-tab="income">Income</button>
-    <button class="tab" data-tab="history">History</button>
-  </nav>
-
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="./app.js"></script>
-  <!-- PATCH v1.2 — SCRIPTS (AT VERY END, BEFORE </body>) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="./app.js"></script>
+<script src="app.js" defer></script>
 </body>
 </html>
