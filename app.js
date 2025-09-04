@@ -361,3 +361,146 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(emojiizeUI, 800);   // after chart/layout settles
   });
 })();
+/* ===== Budget Buddy v1.1 — MTD Expenses Fix ===== */
+
+// --- Storage helpers ---
+const EXP_KEY = 'expenses';
+const INC_KEY = 'incomes';
+
+let expenses = JSON.parse(localStorage.getItem(EXP_KEY) || '[]');
+let incomes  = JSON.parse(localStorage.getItem(INC_KEY) || '[]');
+
+function saveExpensesToStore(){ localStorage.setItem(EXP_KEY, JSON.stringify(expenses)); }
+function saveIncomesToStore(){ localStorage.setItem(INC_KEY, JSON.stringify(incomes)); }
+
+// --- Date utils ---
+function startOfMonth(d=new Date()){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+function endOfMonth(d=new Date()){ return new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999); }
+function isISOInThisMonth(iso){
+  if (!iso) return false;
+  const dt = new Date(iso);
+  return dt >= startOfMonth() && dt <= endOfMonth();
+}
+
+// One-time migration so old items get a createdAt and default frequency
+(function migrateLegacyExpenses(){
+  let changed = false;
+  for (const e of expenses){
+    if (!e.createdAt) { e.createdAt = new Date().toISOString(); changed = true; }
+    if (!('frequency' in e)) { e.frequency = 'oneoff'; changed = true; }
+  }
+  if (changed) saveExpensesToStore();
+})();
+
+// --- Saving NEW expense (use this inside your Save button handler) ---
+function addExpense({ name, category, amount, frequency = 'oneoff', dateISO }){
+  const now = new Date().toISOString();
+  const exp = {
+    id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()),
+    name: String(name || '').trim(),
+    category: String(category || '').trim(),
+    amount: Number(amount) || 0,
+    frequency,                                // 'oneoff' | 'monthly' | ...
+    date: dateISO || null,                    // user-chosen "Due/Date" if any
+    createdAt: now                            // always set for MTD reporting
+  };
+  expenses.push(exp);
+  saveExpensesToStore();
+  renderExpensesList?.();                     // if you have a list renderer
+  recomputeDashboard();                       // <— updates tiles + chart to MTD
+}
+
+// Example: patch your existing save handler to call addExpense(...)
+function onSaveExpenseClick(){
+  // wire to your form inputs
+  const name = document.getElementById('expenseName')?.value || '';
+  const category = document.getElementById('expenseCategory')?.value || '';
+  const amount = document.getElementById('expenseAmount')?.value || 0;
+  const frequency = document.getElementById('expenseFrequency')?.value || 'oneoff';
+  const dateInput = document.getElementById('expenseDate')?.value; // "Due/Date" field
+  const dateISO = dateInput ? new Date(dateInput).toISOString() : null;
+  addExpense({ name, category, amount, frequency, dateISO });
+}
+
+// --- MTD/Recurring computations ---
+function incomeMTD(){
+  return (incomes || [])
+    .filter(i => isISOInThisMonth(i?.date || i?.createdAt))
+    .reduce((s,i)=> s + (Number(i.amount)||0), 0);
+}
+function spentMTD(){
+  return (expenses || [])
+    .filter(e => isISOInThisMonth(e?.date || e?.createdAt))
+    .reduce((s,e)=> s + (Number(e.amount)||0), 0);
+}
+function recurringMonthlyTotal(){
+  return (expenses || [])
+    .filter(e => e.frequency === 'monthly')
+    .reduce((s,e)=> s + (Number(e.amount)||0), 0);
+}
+
+// --- Dashboard + Chart update (MTD by default) ---
+function setCurrency(selOrEl, val){
+  const el = typeof selOrEl === 'string' ? document.querySelector(selOrEl) : selOrEl;
+  if (el) el.textContent = `$${(Number(val)||0).toFixed(2)}`;
+}
+
+function recomputeDashboard(view='mtd'){
+  const inc = incomeMTD();
+  const mtd = spentMTD();
+  const recurring = recurringMonthlyTotal();
+  const expToShow = view === 'recurring' ? recurring : mtd;
+
+  // Update tiles (adjust selectors to yours)
+  setCurrency('#monthlyIncome', inc);         // label now means "Income MTD"
+  setCurrency('#monthlyExpenses', expToShow); // label becomes "Spent this month (MTD)" or "Recurring bills"
+  setCurrency('#netAmount', inc - expToShow);
+
+  // Optional footnote about recurring when in MTD view
+  const note = document.getElementById('recurringBillsNote');
+  if (note) note.textContent = view === 'mtd' ? `Recurring bills this month: $${recurring.toFixed(2)}` : '';
+
+  // Update chart
+  if (window.summaryChart) {
+    window.summaryChart.data.datasets[0].data = [inc, expToShow, inc - expToShow];
+    window.summaryChart.update();
+  }
+}
+
+// --- View toggle (MTD vs Recurring) — injected if not present ---
+(function ensureViewToggle(){
+  let select = document.getElementById('chartView');
+  if (!select){
+    const container = document.querySelector('#dashboardControls') || document.querySelector('#dashboard') || document.body;
+    const wrap = document.createElement('div');
+    wrap.style.margin = '8px 0';
+    wrap.innerHTML = `
+      <label style="display:flex;gap:.5rem;align-items:center;font-size:.9rem">
+        View:
+        <select id="chartView">
+          <option value="mtd" selected>MTD</option>
+          <option value="recurring">Recurring</option>
+        </select>
+      </label>`;
+    container.prepend(wrap);
+    select = wrap.querySelector('#chartView');
+  }
+  select.addEventListener('change', e => recomputeDashboard(e.target.value));
+})();
+
+// --- Initialize chart reference if you haven't already ---
+(function ensureChartRef(){
+  const canvas = document.getElementById('summaryChart');
+  if (!canvas || window.summaryChart) return;
+  try {
+    window.summaryChart = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: { labels: ['Income','Expenses','Net'], datasets: [{ label: 'This Month', data: [0,0,0] }] },
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, animation: false }
+    });
+  } catch (_) { /* Chart.js not loaded here — safe no-op */ }
+})();
+
+// Kick everything once on load
+document.addEventListener('DOMContentLoaded', () => recomputeDashboard('mtd'));
+/* ===== End v1.1 patch ===== */
