@@ -145,3 +145,219 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial render
   renderExpenses(); renderIncome(); updateDashboard();
 });
+/* ===== v1.4.1 — Button fix + Emoji UI (append to end) ===== */
+(function () {
+  if (window.__BB_EMOJI_PATCH__) return; // avoid double-patch
+  window.__BB_EMOJI_PATCH__ = true;
+
+  // --- helpers ---
+  const $  = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const n  = (v, d=0) => Number(v ?? d) || d;
+
+  function ready(fn) {
+    if (document.readyState !== 'loading') fn();
+    else document.addEventListener('DOMContentLoaded', fn, { once: true });
+  }
+
+  // Prevent accidental form submits (common cause of "button doesn't work")
+  function preventFormSubmits() {
+    document.querySelectorAll('form').forEach(f => {
+      if (!f.dataset.nosubmit) {
+        f.addEventListener('submit', (e) => e.preventDefault());
+        f.dataset.nosubmit = '1';
+      }
+    });
+  }
+
+  // ---- action wrappers (call whichever exists in your app) ----
+  function bbSaveExpense() {
+    if (typeof saveExpense === 'function') return saveExpense();
+    if (typeof onSaveExpenseClick === 'function') return onSaveExpenseClick();
+
+    // Fallback: minimal inline save using common IDs
+    const name = $('#expenseName')?.value || '';
+    const amount = n($('#expenseAmount')?.value);
+    if (!name || !amount) { alert('Enter a name and amount.'); return; }
+    const category  = $('#expenseCategory')?.value || '';
+    const frequency = $('#expenseFrequency')?.value || 'oneoff';
+    const dval      = $('#expenseDate')?.value;
+    const dateISO   = dval ? new Date(dval).toISOString() : null;
+
+    const EXP_KEY = 'expenses';
+    let expenses  = JSON.parse(localStorage.getItem(EXP_KEY) || '[]');
+    expenses.push({
+      id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now() + Math.random()),
+      name, category, amount, frequency, date: dateISO, createdAt: new Date().toISOString()
+    });
+    localStorage.setItem(EXP_KEY, JSON.stringify(expenses));
+
+    // best-effort refresh if app provided functions exist
+    try { renderExpenses?.(); } catch {}
+    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
+
+    // clear fields
+    ['expenseName','expenseCategory','expenseAmount','expenseDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
+    const f = $('#expenseFrequency'); if (f) f.value = 'oneoff';
+  }
+
+  function bbClearExpenseForm() {
+    ['expenseName','expenseCategory','expenseAmount','expenseDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
+    const f = $('#expenseFrequency'); if (f) f.value = 'oneoff';
+  }
+
+  function bbSaveIncome() {
+    if (typeof saveIncome === 'function') return saveIncome();
+
+    // Fallback inline income add
+    const INC_KEY = 'incomes';
+    let incomes   = JSON.parse(localStorage.getItem(INC_KEY) || '[]');
+    const name    = $('#incomeName')?.value || 'Income';
+    const amount  = n($('#incomeAmount')?.value);
+    const dval    = $('#incomeDate')?.value;
+    const dateISO = dval ? new Date(dval).toISOString() : new Date().toISOString();
+    if (!amount) { alert('Enter income amount'); return; }
+    incomes.push({ id:String(Date.now()+Math.random()), name, amount, date: dateISO, createdAt: dateISO });
+    localStorage.setItem(INC_KEY, JSON.stringify(incomes));
+
+    try { renderIncome?.(); } catch {}
+    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
+
+    ['incomeName','incomeAmount','incomeDate'].forEach(id => { const el = $('#'+id); if (el) el.value=''; });
+  }
+
+  function bbDeleteExpense(id) {
+    if (typeof deleteExpense === 'function') return deleteExpense(id);
+
+    // Fallback inline delete by id or data-del
+    const EXP_KEY = 'expenses';
+    let expenses  = JSON.parse(localStorage.getItem(EXP_KEY) || '[]');
+    expenses = expenses.filter(e => String(e.id) !== String(id));
+    localStorage.setItem(EXP_KEY, JSON.stringify(expenses));
+    try { renderExpenses?.(); } catch {}
+    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
+  }
+
+  function bbExportJSON() {
+    const data = {
+      expenses: JSON.parse(localStorage.getItem('expenses') || '[]'),
+      incomes : JSON.parse(localStorage.getItem('incomes')  || '[]')
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'budget-buddy-data.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  function bbClearAll() {
+    if (!confirm('Delete ALL expenses and incomes?')) return;
+    localStorage.setItem('expenses', '[]');
+    localStorage.setItem('incomes',  '[]');
+    try { renderExpenses?.(); renderIncome?.(); } catch {}
+    try { recomputeDashboard?.('mtd'); updateDashboard?.(); } catch {}
+  }
+
+  function bbShowTab(tab) {
+    if (typeof showTab === 'function') { showTab(tab); return; }
+    // Fallback: classic page switcher with ids page-*
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === `page-${tab}`));
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  // ---- Event delegation (one handler fixes all dead buttons) ----
+  function attachDelegatedClicks() {
+    if (document.__bbDelegatedClicksBound) return;
+    document.__bbDelegatedClicksBound = true;
+
+    document.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-action], .tab, [data-del], .del, #saveExpenseBtn, #clearExpenseBtn, #saveIncomeBtn, #exportBtn, #clearAllBtn');
+      if (!t) return;
+
+      // Normalize to an action
+      let action = t.dataset.action;
+      if (!action) {
+        if (t.matches('.tab')) action = 'switch-tab';
+        else if (t.matches('[data-del], .del')) action = 'delete-expense';
+        else if (t.id === 'saveExpenseBtn') action = 'save-expense';
+        else if (t.id === 'clearExpenseBtn') action = 'clear-expense';
+        else if (t.id === 'saveIncomeBtn') action = 'save-income';
+        else if (t.id === 'exportBtn')) action = 'export-json';
+        else if (t.id === 'clearAllBtn') action = 'clear-all';
+      }
+
+      // Route
+      switch (action) {
+        case 'save-expense':  e.preventDefault(); bbSaveExpense(); break;
+        case 'clear-expense': e.preventDefault(); bbClearExpenseForm(); break;
+        case 'save-income':   e.preventDefault(); bbSaveIncome(); break;
+        case 'export-json':   e.preventDefault(); bbExportJSON(); break;
+        case 'clear-all':     e.preventDefault(); bbClearAll(); break;
+        case 'switch-tab':    e.preventDefault(); bbShowTab(t.dataset.tab || 'dashboard'); break;
+        case 'delete-expense':
+          e.preventDefault();
+          const id = t.getAttribute('data-del') || t.dataset.id || t.value || t.getAttribute('data-id');
+          if (id) bbDeleteExpense(id);
+          break;
+        default: break;
+      }
+    }, { passive: false });
+  }
+
+  // ---- Emoji-ize the UI (no HTML edits needed) ----
+  function emojiizeUI() {
+    // Save / Clear (Expenses)
+    const saveExp = $('#saveExpenseBtn'); if (saveExp) { saveExp.textContent = '💾'; saveExp.classList.add('btn-emoji'); saveExp.setAttribute('aria-label','Save Expense'); saveExp.dataset.action = 'save-expense'; }
+    const clrExp = $('#clearExpenseBtn'); if (clrExp) { clrExp.textContent = '🧹'; clrExp.classList.add('btn-emoji'); clrExp.setAttribute('aria-label','Clear'); clrExp.dataset.action = 'clear-expense'; }
+
+    // Income Save
+    const saveInc = $('#saveIncomeBtn'); if (saveInc) { saveInc.textContent = '➕💵'; saveInc.classList.add('btn-emoji'); saveInc.setAttribute('aria-label','Save Income'); saveInc.dataset.action = 'save-income'; }
+
+    // Export / Clear All
+    const exportBtn = $('#exportBtn'); if (exportBtn) { exportBtn.textContent = '📤'; exportBtn.classList.add('btn-emoji'); exportBtn.setAttribute('aria-label','Export JSON'); exportBtn.dataset.action = 'export-json'; }
+    const clearAll  = $('#clearAllBtn'); if (clearAll) { clearAll.textContent = '🗑️'; clearAll.classList.add('btn-emoji'); clearAll.setAttribute('aria-label','Clear All'); clearAll.dataset.action = 'clear-all'; }
+
+    // Tabs
+    const tabIcon = { dashboard:'🏠', expenses:'🧾', income:'💵', history:'📜' };
+    document.querySelectorAll('.tab[data-tab]').forEach(tab => {
+      const k = tab.dataset.tab; if (tabIcon[k]) { tab.textContent = tabIcon[k]; tab.classList.add('btn-emoji'); }
+    });
+
+    // Delete icons inside the expenses list (works with existing renderers)
+    function emojiizeDeletes(root=document) {
+      root.querySelectorAll('.del, [data-del]').forEach(btn => {
+        btn.textContent = '🗑️';
+        btn.classList.add('btn-trash');
+        if (!btn.dataset.action) btn.dataset.action = 'delete-expense';
+        if (!btn.getAttribute('data-id') && btn.getAttribute('data-del')) {
+          btn.setAttribute('data-id', btn.getAttribute('data-del'));
+        }
+      });
+    }
+    emojiizeDeletes();
+
+    // Watch for future list renders and re-emojiize
+    const list = $('#expensesList');
+    if (list && !list.__observer) {
+      const mo = new MutationObserver(() => emojiizeDeletes(list));
+      mo.observe(list, { childList: true, subtree: true });
+      list.__observer = mo;
+    }
+  }
+
+  // ---- Boot sequence ----
+  ready(() => {
+    // Never let CSS lock scrolling
+    document.documentElement.style.overflow = 'auto';
+    document.body.style.overflow = 'auto';
+
+    preventFormSubmits();
+    attachDelegatedClicks();
+    emojiizeUI();
+
+    // Re-run after initial renders
+    setTimeout(emojiizeUI, 200);   // after first render
+    setTimeout(emojiizeUI, 800);   // after chart/layout settles
+  });
+})();
