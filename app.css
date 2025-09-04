@@ -151,3 +151,41 @@ button, .btn {
 
 /* Safety: never globally hide overflow on body/html again */
 html.no-scroll, body.no-scroll { overflow: auto !important; }
+/* ===== v1.4.2 — Restore classic UI (text tabs/buttons) ===== */
+
+/* Bottom tabs look/spacing (text, not emojis) */
+.tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; gap: 10px; justify-content: space-around;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  background: #0f1115ee; border-top: 1px solid #222736; z-index: 10;
+}
+.tab {
+  flex: 1; text-align: center;
+  height: 44px; padding: 10px 12px;
+  border-radius: 14px; border: 1px solid #222736;
+  background: #0f131c; color: #e7e9ee; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tab.active { outline: 2px solid #2f3b54; }
+
+/* If a previous patch left .btn-emoji on tabs/buttons, neutralize it */
+.tab.btn-emoji,
+#saveExpenseBtn.btn-emoji,
+#clearExpenseBtn.btn-emoji,
+#saveIncomeBtn.btn-emoji,
+#exportBtn.btn-emoji,
+#clearAllBtn.btn-emoji {
+  font-size: 16px; width: auto; height: 44px; padding: 10px 14px;
+}
+
+/* Delete control = small round “×” button (like your screenshots) */
+.del-circle {
+  width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 18px; border: 1px solid #2a2a2a; background: #1a1a1a; color: #e7e9ee;
+  font-size: 20px; line-height: 1; cursor: pointer;
+}
+
+/* iOS scroll safety */
+html, body { overflow-x: hidden; }
+body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
