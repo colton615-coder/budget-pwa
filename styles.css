@@ -109,3 +109,54 @@ html, body { height: -webkit-fill-available; overscroll-behavior-y: contain; }
 .bar.over .barFill{ background: var(--danger); }
 /* make import/restore buttons sit nicely */
 #importBtn { order: -1; } /* appears left-most in the row */
+/* ===== v1.2: iOS scroll + bottom bar fixes ===== */
+:root { --safe-bottom: env(safe-area-inset-bottom); }
+
+html, body {
+  margin: 0; padding: 0;
+  height: auto; min-height: 100%;
+  overflow-x: hidden;        /* stop sideways jiggle */
+}
+
+body {
+  /* Never lock vertical scroll globally */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#app, .app, .page, main {
+  min-height: 100dvh;        /* use dynamic viewport, not 100vh */
+}
+
+.main-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Bottom nav: use sticky, not full-screen fixed overlay */
+.navbar {
+  position: sticky; bottom: 0; left: 0; right: 0;
+  padding-bottom: calc(8px + var(--safe-bottom));
+  z-index: 10;
+  backdrop-filter: blur(6px);
+}
+
+/* Make sure nothing invisible blocks taps */
+.overlay, .scrim, .backdrop {
+  pointer-events: none;   /* they can be visually present but won’t eat taps */
+}
+
+/* Chart sized sanely; no absolute overlay */
+.chart-wrap { position: relative; }
+.chart-wrap canvas { display: block; width: 100%; height: 220px; }
+
+/* Buttons behave on iOS */
+button, .btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safety: never globally hide overflow on body/html again */
+html.no-scroll, body.no-scroll { overflow: auto !important; }
