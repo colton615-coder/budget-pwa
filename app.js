@@ -504,3 +504,55 @@ function recomputeDashboard(view='mtd'){
 // Kick everything once on load
 document.addEventListener('DOMContentLoaded', () => recomputeDashboard('mtd'));
 /* ===== End v1.1 patch ===== */
+/* ===== v1.2: scroll + button reliability ===== */
+
+// Never let an old CSS toggle lock the page
+(function unlockScroll() {
+  document.documentElement.style.overflow = 'auto';
+  document.body.style.overflow = 'auto';
+})();
+
+// Attach handlers once DOM is ready, and only once.
+function ready(fn){ 
+  if (document.readyState !== 'loading') fn(); 
+  else document.addEventListener('DOMContentLoaded', fn, { once: true });
+}
+
+ready(() => {
+  // 1) Prevent any form from reloading the page on submit
+  document.querySelectorAll('form').forEach(f => {
+    if (!f.dataset.nosubmit) {
+      f.addEventListener('submit', (e) => e.preventDefault());
+      f.dataset.nosubmit = '1';
+    }
+  });
+
+  // 2) Wire Save Expense button once
+  const btn = document.getElementById('saveExpenseBtn');
+  if (btn && !btn.dataset.bound) {
+    btn.type = 'button'; // stop implicit submit
+    btn.addEventListener('click', onSaveExpenseClick);
+    btn.dataset.bound = '1';
+  }
+
+  // 3) Tab/nav buttons (if you have them)
+  document.querySelectorAll('[data-nav-target]').forEach(el => {
+    if (!el.dataset.bound) {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const target = el.dataset.navTarget; // e.g., "dashboard" | "expenses" | ...
+        if (typeof switchTab === 'function') switchTab(target);
+      }, { passive: true });
+      el.dataset.bound = '1';
+    }
+  });
+
+  // 4) Defensive: remove any invisible full-page overlays that could eat taps
+  document.querySelectorAll('.overlay,.scrim,.backdrop').forEach(el => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.opacity === '0') el.remove();
+  });
+
+  // 5) Rekick dashboard once everything is attached
+  try { recomputeDashboard?.(document.getElementById('chartView')?.value || 'mtd'); } catch {}
+});
