@@ -595,4 +595,46 @@
   /* ---------- Helpers ---------- */
   function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
   function escapeHtml(s=''){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])); }
+  /* ---------- Bottom Tab Bar ---------- */
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabs = [
+      { id: 'tabOverview', section: 'summary' },
+      { id: 'tabBudgets', section: 'budgets' },
+      { id: 'tabTx', section: 'txTitle' },
+      { id: 'tabSettings', action: () => openSettings() }
+    ];
+
+    // create tab bar
+    const bar = document.createElement('nav');
+    bar.className = 'tabbar';
+    bar.innerHTML = `
+      <button id="tabOverview" class="active">🏠<br><small>Overview</small></button>
+      <button id="tabBudgets">📊<br><small>Budgets</small></button>
+      <button id="tabTx">💵<br><small>Transactions</small></button>
+      <button id="tabSettings">⚙️<br><small>Settings</small></button>
+    `;
+    document.body.appendChild(bar);
+
+    function showSection(sectionId){
+      $$('main > section').forEach(sec => sec.hidden = true);
+      if(sectionId){
+        const sec = document.querySelector(`section.${sectionId}`) || document.getElementById(sectionId);
+        if(sec) sec.hidden = false;
+      }
+    }
+
+    tabs.forEach(t => {
+      byId(t.id)?.addEventListener('click', () => {
+        // reset active
+        bar.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+        byId(t.id).classList.add('active');
+
+        if(t.section){ showSection(t.section); }
+        if(t.action){ t.action(); }
+      });
+    });
+
+    // initial state: show overview only
+    showSection('summary');
+  });
 })();
